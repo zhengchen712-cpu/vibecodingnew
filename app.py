@@ -336,28 +336,20 @@ def generate_building_image(building_name, api_key):
     
     prompt = f"{building_name}，标志性建筑，专业摄影，高清，蓝色调渐变背景，适合做封面背景，构图下半部分是建筑，上半部分留白，安静专业氛围"
     
-    url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+    # 图片生成使用专门的端点
+    url = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
-    # ARK 图片生成请求
+    # 图片生成请求格式
     data = {
         "model": "doubao-seedream-4-5-251128",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "max_tokens": 2048,
-        "image_generation": True
+        "prompt": prompt,
+        "n": 1,
+        "size": "1024x1024",
+        "response_format": "url"
     }
     
     print(f"🔄 正在调用 ARK API 生成 {building_name} 图片...")
@@ -368,34 +360,27 @@ def generate_building_image(building_name, api_key):
         return None
     
     result_json = response.json()
-    # 解析返回，获取图片 URL
+    # 解析图片生成返回，获取图片 URL
     try:
-        if "choices" not in result_json:
+        if "data" not in result_json or len(result_json["data"]) == 0:
             print(f"❌ 响应格式错误: {json.dumps(result_json, indent=2)}")
             return None
         
-        content = result_json["choices"][0]["message"]["content"]
+        # 获取第一张图片 URL
+        image_url = result_json["data"][0]["url"]
+        print(f"✅ 获取图片 URL: {image_url}")
         
-        # 查找图片 URL
-        import re
-        image_url_match = re.search(r'https?://[^\s]+\.png', content)
-        if image_url_match:
-            image_url = image_url_match.group(0)
-            print(f"✅ 获取图片 URL: {image_url}")
-            # 下载图片
-            image_response = requests.get(image_url, timeout=60)
-            if image_response.status_code == 200:
-                # 保存到临时文件
-                generated_path = f"/tmp/generated_{building_name.replace(' ', '_')}.png"
-                with open(generated_path, "wb") as f:
-                    f.write(image_response.content)
-                print(f"✅ 图片已下载: {generated_path}")
-                return generated_path
-            else:
-                print(f"❌ 下载图片失败: {image_response.status_code}")
-                return None
+        # 下载图片
+        image_response = requests.get(image_url, timeout=60)
+        if image_response.status_code == 200:
+            # 保存到临时文件
+            generated_path = f"/tmp/generated_{building_name.replace(' ', '_')}.png"
+            with open(generated_path, "wb") as f:
+                f.write(image_response.content)
+            print(f"✅ 图片已下载: {generated_path}")
+            return generated_path
         else:
-            print(f"❌ 未找到图片 URL: {content}")
+            print(f"❌ 下载图片失败: {image_response.status_code}")
             return None
     except Exception as e:
         print(f"❌ 解析响应错误: {e}")
