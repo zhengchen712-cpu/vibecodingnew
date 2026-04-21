@@ -331,10 +331,17 @@ INDEX_HTML = """
 </html>
 """
 
-def generate_building_image(building_name, api_key):
-    """使用 ARK API 直接生成标志性建筑图片"""
+def generate_complete_cover(main_title, sub_title, building_name, api_key):
+    """使用 ARK API 直接生成完整封面图片，包含文字"""
     
-    prompt = f"{building_name}，标志性建筑大门，写实摄影，高清，低饱和度蓝色调，虚化模糊处理，构图只保留下半部分，上半部分完全留白，适合做微信公众号封面背景，氛围安静专业，不要文字，不要杂乱"
+    prompt = f"""小红书正方形封面图片，要求：
+- 整体深蓝色渐变背景，营造专业沉稳招聘氛围
+- 上方用醒目的金色大字写着：{main_title}
+- 下方金色大字下方用银色小字写着：{sub_title}
+- 最底部放一张：{building_name}，写实摄影，低透明度，不要遮挡文字
+- 整体构图协调，文字清晰可读，颜色搭配专业沉稳
+- 正方形构图，适合小红书发布
+"""
     
     # 图片生成使用专门的端点
     url = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
@@ -344,12 +351,12 @@ def generate_building_image(building_name, api_key):
     }
     
     # 图片生成请求格式 - doubao-seedream 需要满足最小 3686400 像素
-    # 1024 × 3072 = 3,145,728 接近，1536 × 2560 = 3,932,160 满足
+    # 正方形封面，2048x2048 = 4,194,304 满足要求
     data = {
         "model": "doubao-seedream-4-5-251128",
         "prompt": prompt,
         "n": 1,
-        "size": "1536x2560",
+        "size": "2048x2048",
         "response_format": "url"
     }
     
@@ -521,21 +528,29 @@ def generate():
     if not ark_api_key:
         return jsonify({'success': False, 'error': '环境变量 ARK_API_KEY 未设置'})
 
-    # 生成建筑图片
-    building_image_path = generate_building_image(building, ark_api_key)
-    if not building_image_path:
-        return jsonify({'success': False, 'error': '生成建筑图片失败，请检查 API Key'})
+    # AI 直接生成完整封面图片（包含文字）
+    cover_image_url = generate_complete_cover(main_title, sub_title, building, ark_api_key)
+    if not cover_image_url:
+        return jsonify({'success': False, 'error': '生成封面图片失败，请检查 API Key'})
 
-    # 生成输出文件名
+    # 下载图片到本地
     generate_id = str(uuid.uuid4())[:8]
     building_safe = secure_filename(building.replace(' ', '_'))
     output_filename = f"cover_{building_safe}_{generate_id}.png"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-    # 合成封面
-    success = compose_cover(main_title, sub_title, building_image_path, output_path)
-    if not success:
-        return jsonify({'success': False, 'error': '合成封面失败'})
+    try:
+        image_response = requests.get(cover_image_url, timeout=60)
+        if image_response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(image_response.content)
+            print(f"✅ 封面已下载: {output_path}")
+        else:
+            print(f"❌ 下载图片失败: {image_response.status_code}")
+            return jsonify({'success': False, 'error': '下载生成的图片失败'})
+    except Exception as e:
+        print(f"❌ 下载图片异常: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
     # 返回成功，提供下载链接
     image_url = f"/download/{output_filename}"
