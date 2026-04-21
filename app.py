@@ -334,7 +334,7 @@ INDEX_HTML = """
 def generate_building_image(building_name, api_key):
     """使用 ARK API 直接生成标志性建筑图片"""
     
-    prompt = f"{building_name}，标志性建筑，专业摄影，高清，蓝色调渐变背景，适合做封面背景，构图下半部分是建筑，上半部分留白，安静专业氛围"
+    prompt = f"{building_name}，标志性建筑大门，写实摄影，高清，低饱和度蓝色调，虚化模糊处理，构图只保留下半部分，上半部分完全留白，适合做微信公众号封面背景，氛围安静专业，不要文字，不要杂乱"
     
     # 图片生成使用专门的端点
     url = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
@@ -404,41 +404,47 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     
-    # 粘贴建筑背景图（放在底部，占 30% 高度 - 参考效果图布局）
+    # 粘贴建筑背景图（放在底部，占 25% 高度，降低透明度让文字更清晰）
     try:
         building_img = Image.open(building_image_path).convert('RGBA')
-        building_img = building_img.resize((size, int(size * 0.30)))
+        # 调整大小，只占底部 25%
+        building_img = building_img.resize((size, int(size * 0.25)))
+        
+        # 降低透明度，让背景不抢文字风头（25% 透明度）
+        alpha = building_img.getchannel('A')
+        alpha = alpha.point(lambda p: int(p * 0.25))
+        building_img.putalpha(alpha)
         
         # 放在底部
         image.paste(building_img, (0, size - building_img.height), building_img)
-        print("✅ 建筑背景已粘贴")
+        print("✅ 建筑背景已粘贴（透明度 25%，占底部 25%）")
     except Exception as e:
         print(f"⚠️ 粘贴建筑背景失败: {e}，只用纯色背景")
     
-    # 添加主标题（金色大字）
+    # 添加主标题（金色大字，更大字体更显眼）
     main_font = None
     for font_path in font_candidates:
         try:
-            main_font = ImageFont.truetype(font_path, 88)
+            main_font = ImageFont.truetype(font_path, 100)
             break
         except:
             continue
     if main_font is None:
-        main_font = ImageFont.load_default(size=88)
+        main_font = ImageFont.load_default(size=100)
     
     # 金色 #d4af37
     main_color = (212, 175, 55)
     
-    # 计算文字位置（参考效果图：标题占上方，15% 位置）
+    # 计算文字位置（主标题在上方 20% 位置，居中）
     main_bbox = draw.textbbox((0, 0), main_title, font=main_font)
     main_width = main_bbox[2] - main_bbox[0]
     main_height = main_bbox[3] - main_bbox[1]
     main_x = (size - main_width) // 2
-    main_y = int(size * 0.15)
+    main_y = int(size * 0.20)
     
-    # 绘制文字阴影增加可读性
+    # 绘制文字阴影增加可读性（更大阴影）
     shadow_color = (0, 0, 0)
-    draw.text((main_x + 2, main_y + 2), main_title, font=main_font, fill=shadow_color)
+    draw.text((main_x + 3, main_y + 3), main_title, font=main_font, fill=shadow_color)
     draw.text((main_x, main_y), main_title, font=main_font, fill=main_color)
     print("✅ 主标题已添加")
     
@@ -446,22 +452,22 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     sub_font = None
     for font_path in font_candidates:
         try:
-            sub_font = ImageFont.truetype(font_path, 56)
+            sub_font = ImageFont.truetype(font_path, 64)
             break
         except:
             continue
     if sub_font is None:
-        sub_font = ImageFont.load_default(size=56)
+        sub_font = ImageFont.load_default(size=64)
     
     # 银色 #c0c0c0
     sub_color = (192, 192, 192)
     
-    # 计算文字位置（副标题在标题下方，40% 位置）
+    # 计算文字位置（副标题在主标题下方，38% 位置）
     sub_bbox = draw.textbbox((0, 0), sub_title, font=sub_font)
     sub_width = sub_bbox[2] - sub_bbox[0]
     sub_height = sub_bbox[3] - sub_bbox[1]
     sub_x = (size - sub_width) // 2
-    sub_y = int(size * 0.40)
+    sub_y = int(size * 0.38)
     
     # 绘制文字阴影
     draw.text((sub_x + 2, sub_y + 2), sub_title, font=sub_font, fill=shadow_color)
