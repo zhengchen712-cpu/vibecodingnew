@@ -344,7 +344,7 @@ def generate_building_image(building_name, api_key):
     
     # ARK 图片生成请求
     data = {
-        "model": "doubao-1-5-pro-32k",
+        "model": "ark-code-latest",
         "messages": [
             {
                 "role": "user",
