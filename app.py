@@ -396,8 +396,10 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     image = Image.new('RGB', (size, size), background_color)
     draw = ImageDraw.Draw(image)
     
-    # 中文字体候选路径 - Vercel 已有字体
+    # 中文字体候选路径 - 使用项目内置字体保证中文显示
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     font_candidates = [
+        os.path.join(script_dir, "fonts/wqy-microhei.ttc"),
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
         "simhei.ttf",
