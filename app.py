@@ -344,7 +344,7 @@ def generate_building_image(building_name, api_key):
     
     # ARK 图片生成请求
     data = {
-        "model": "ark-code-latest",
+        "model": "doubao-seedream-4-5-251128",
         "messages": [
             {
                 "role": "user",
