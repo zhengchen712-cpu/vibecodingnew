@@ -348,7 +348,7 @@ def generate_building_image(building_name, api_key):
         "model": "doubao-seedream-4-5-251128",
         "prompt": prompt,
         "n": 1,
-        "size": "1024x1024",
+        "size": "2048x2048",
         "response_format": "url"
     }
     
