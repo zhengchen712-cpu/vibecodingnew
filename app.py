@@ -7,8 +7,10 @@
 
 import os
 import sys
-import subprocess
+import json
 import uuid
+import requests
+from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, request, send_file, jsonify, render_template_string
 from werkzeug.utils import secure_filename
 
@@ -329,6 +331,183 @@ INDEX_HTML = """
 </html>
 """
 
+def generate_building_image(building_name, api_key):
+    """使用 ARK API 直接生成标志性建筑图片"""
+    
+    prompt = f"{building_name}，标志性建筑，专业摄影，高清，蓝色调渐变背景，适合做封面背景，构图下半部分是建筑，上半部分留白，安静专业氛围"
+    
+    url = "https://ark.cn-beijing.volces.com/api/coding/v3/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    # ARK 图片生成请求
+    data = {
+        "model": "doubao-seed-code",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 2048,
+        "image_generation": True
+    }
+    
+    print(f"🔄 正在调用 ARK API 生成 {building_name} 图片...")
+    response = requests.post(url, headers=headers, json=data, timeout=180)
+    
+    if response.status_code != 200:
+        print(f"❌ API 请求失败: {response.status_code} {response.text}")
+        return None
+    
+    result_json = response.json()
+    # 解析返回，获取图片 URL
+    try:
+        if "choices" not in result_json:
+            print(f"❌ 响应格式错误: {json.dumps(result_json, indent=2)}")
+            return None
+        
+        content = result_json["choices"][0]["message"]["content"]
+        
+        # 查找图片 URL
+        import re
+        image_url_match = re.search(r'https?://[^\s]+\.png', content)
+        if image_url_match:
+            image_url = image_url_match.group(0)
+            print(f"✅ 获取图片 URL: {image_url}")
+            # 下载图片
+            image_response = requests.get(image_url, timeout=60)
+            if image_response.status_code == 200:
+                # 保存到临时文件
+                generated_path = f"/tmp/generated_{building_name.replace(' ', '_')}.png"
+                with open(generated_path, "wb") as f:
+                    f.write(image_response.content)
+                print(f"✅ 图片已下载: {generated_path}")
+                return generated_path
+            else:
+                print(f"❌ 下载图片失败: {image_response.status_code}")
+                return None
+        else:
+            print(f"❌ 未找到图片 URL: {content}")
+            return None
+    except Exception as e:
+        print(f"❌ 解析响应错误: {e}")
+        return None
+
+def compose_cover(main_title, sub_title, building_image_path, output_path):
+    """合成最终封面 - 1:1 正方形"""
+    
+    # 创建 1024x1024 正方形画布，深蓝色背景
+    size = 1024
+    background_color = (10, 30, 68)  # #0a1e44 深蓝色
+    image = Image.new('RGB', (size, size), background_color)
+    draw = ImageDraw.Draw(image)
+    
+    # 中文字体候选路径 - Vercel 已有字体
+    font_candidates = [
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "simhei.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    
+    # 粘贴建筑背景图（放在底部，占 30% 高度 - 参考效果图布局）
+    try:
+        building_img = Image.open(building_image_path).convert('RGBA')
+        building_img = building_img.resize((size, int(size * 0.30)))
+        
+        # 放在底部
+        image.paste(building_img, (0, size - building_img.height), building_img)
+        print("✅ 建筑背景已粘贴")
+    except Exception as e:
+        print(f"⚠️ 粘贴建筑背景失败: {e}，只用纯色背景")
+    
+    # 添加主标题（金色大字）
+    main_font = None
+    for font_path in font_candidates:
+        try:
+            main_font = ImageFont.truetype(font_path, 88)
+            break
+        except:
+            continue
+    if main_font is None:
+        main_font = ImageFont.load_default(size=88)
+    
+    # 金色 #d4af37
+    main_color = (212, 175, 55)
+    
+    # 计算文字位置（参考效果图：标题占上方，15% 位置）
+    main_bbox = draw.textbbox((0, 0), main_title, font=main_font)
+    main_width = main_bbox[2] - main_bbox[0]
+    main_height = main_bbox[3] - main_bbox[1]
+    main_x = (size - main_width) // 2
+    main_y = int(size * 0.15)
+    
+    # 绘制文字阴影增加可读性
+    shadow_color = (0, 0, 0)
+    draw.text((main_x + 2, main_y + 2), main_title, font=main_font, fill=shadow_color)
+    draw.text((main_x, main_y), main_title, font=main_font, fill=main_color)
+    print("✅ 主标题已添加")
+    
+    # 添加副标题（银色小字）
+    sub_font = None
+    for font_path in font_candidates:
+        try:
+            sub_font = ImageFont.truetype(font_path, 56)
+            break
+        except:
+            continue
+    if sub_font is None:
+        sub_font = ImageFont.load_default(size=56)
+    
+    # 银色 #c0c0c0
+    sub_color = (192, 192, 192)
+    
+    # 计算文字位置（副标题在标题下方，40% 位置）
+    sub_bbox = draw.textbbox((0, 0), sub_title, font=sub_font)
+    sub_width = sub_bbox[2] - sub_bbox[0]
+    sub_height = sub_bbox[3] - sub_bbox[1]
+    sub_x = (size - sub_width) // 2
+    sub_y = int(size * 0.40)
+    
+    # 绘制文字阴影
+    draw.text((sub_x + 2, sub_y + 2), sub_title, font=sub_font, fill=shadow_color)
+    draw.text((sub_x, sub_y), sub_title, font=sub_font, fill=sub_color)
+    print("✅ 副标题已添加")
+    
+    # 添加右上角 logo
+    logo_text = "天津就业服务"
+    logo_font = None
+    for font_path in font_candidates:
+        try:
+            logo_font = ImageFont.truetype(font_path, 24)
+            break
+        except:
+            continue
+    if logo_font is None:
+        logo_font = ImageFont.load_default(size=24)
+    
+    # 浅色文字
+    logo_color = (150, 150, 150)
+    logo_bbox = draw.textbbox((0, 0), logo_text, font=logo_font)
+    logo_width = logo_bbox[2] - logo_bbox[0]
+    logo_x = size - logo_width - 30
+    logo_y = 20
+    draw.text((logo_x, logo_y), logo_text, font=logo_font, fill=logo_color)
+    print("✅ Logo 已添加")
+    
+    # 保存最终图片
+    image.save(output_path, "PNG")
+    print(f"✅ 封面已保存到: {output_path}")
+    return True
+
 @app.route('/')
 def index():
     return render_template_string(INDEX_HTML)
@@ -343,45 +522,34 @@ def generate():
     if not main_title or not sub_title or not building:
         return jsonify({'success': False, 'error': '信息不完整'})
 
-    # 生成唯一文件名
+    # 从环境变量获取 ARK API KEY
+    ark_api_key = os.environ.get("ARK_API_KEY")
+    if not ark_api_key:
+        return jsonify({'success': False, 'error': '环境变量 ARK_API_KEY 未设置'})
+
+    # 生成建筑图片
+    building_image_path = generate_building_image(building, ark_api_key)
+    if not building_image_path:
+        return jsonify({'success': False, 'error': '生成建筑图片失败，请检查 API Key'})
+
+    # 生成输出文件名
     generate_id = str(uuid.uuid4())[:8]
     building_safe = secure_filename(building.replace(' ', '_'))
     output_filename = f"cover_{building_safe}_{generate_id}.png"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-    # 调用生成脚本
-    script_path = os.path.join(os.path.dirname(__file__), 'xiaohongshu-cover-generator.py')
+    # 合成封面
+    success = compose_cover(main_title, sub_title, building_image_path, output_path)
+    if not success:
+        return jsonify({'success': False, 'error': '合成封面失败'})
 
-    try:
-        result = subprocess.run(
-            [sys.executable, script_path, main_title, sub_title, building],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5分钟超时
-        )
-
-        if result.returncode != 0:
-            error_msg = result.stderr if result.stderr else "生成脚本执行失败"
-            return jsonify({'success': False, 'error': error_msg})
-
-        # 检查输出文件是否生成
-        if not os.path.exists(output_path):
-            # 脚本会输出最终文件路径，尝试从输出提取
-            print(result.stdout)
-            return jsonify({'success': False, 'error': '输出文件未生成'})
-
-        # 返回成功，提供下载链接
-        image_url = f"/download/{output_filename}"
-        return jsonify({
-            'success': True,
-            'imageUrl': image_url,
-            'filename': output_filename
-        })
-
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': '生成超时，请稍后重试'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    # 返回成功，提供下载链接
+    image_url = f"/download/{output_filename}"
+    return jsonify({
+        'success': True,
+        'imageUrl': image_url,
+        'filename': output_filename
+    })
 
 @app.route('/download/<filename>')
 def download(filename):
