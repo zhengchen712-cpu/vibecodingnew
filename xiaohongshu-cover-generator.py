@@ -3,75 +3,86 @@
 """
 小红书招聘封面自动生成器
 功能：根据用户输入，自动生成标志性建筑背景图，合成最终封面
-使用已有的 image-generate 技能生成图片
+直接调用 ARK API 生成图片，不依赖本地脚本
 """
 
 import os
 import sys
-import re
-import subprocess
+import json
+import requests
 from PIL import Image, ImageDraw, ImageFont
 
-def generate_building_image(building_name):
-    """使用 AI 生成标志性建筑图片 - 调用现有的 image-generate 脚本"""
+def generate_building_image(building_name, api_key):
+    """使用 ARK API 直接生成标志性建筑图片"""
     
     prompt = f"{building_name}，标志性建筑，专业摄影，高清，蓝色调渐变背景，适合做封面背景，构图下半部分是建筑，上半部分留白，安静专业氛围"
     
-    print(f"🔄 正在生成 {building_name} 图片...")
+    url = "https://ark.cn-beijing.volces.com/api/coding/v3/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
-    # 调用现有的 image-generate 脚本，它已经能正常工作
-    script_dir = "/root/.openclaw/workspace/skills/image-generate/scripts"
-    script_path = os.path.join(script_dir, "image_generate.py")
+    # ARK 图片生成请求
+    data = {
+        "model": "doubao-seed-code",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 2048,
+        "image_generation": True
+    }
     
-    # 运行脚本生成图片 - 脚本生成的文件在脚本目录
-    result = subprocess.run(
-        ["python", script_path, prompt],
-        capture_output=True,
-        text=True,
-        timeout=180,
-        cwd=script_dir
-    )
+    print(f"🔄 正在调用 ARK API 生成 {building_name} 图片...")
+    response = requests.post(url, headers=headers, json=data, timeout=180)
     
-    if result.returncode != 0:
-        print(f"❌ 生成失败: {result.stderr}")
+    if response.status_code != 200:
+        print(f"❌ API 请求失败: {response.status_code} {response.text}")
         return None
     
-    # 从输出提取图片路径
-    output = result.stdout
-    print(output)
+    result = response.json
     
-    # 打印完整输出方便调试
-    print("--- 脚本输出 ---")
-    print(output)
-    print("----------------")
-    # 查找 Downloaded to: ./generated_image_*.png
-    match = re.search(r'Downloaded to:\s*(.+\.png)', output)
-    if match:
-        image_filename = match.group(1)
-        # 如果是相对路径，相对于脚本目录
-        if image_filename.startswith('./'):
-            image_filename = image_filename[2:]
-        image_path = os.path.join(script_dir, image_filename)
-        abs_path = os.path.abspath(image_path)
-        if os.path.exists(abs_path):
-            print(f"✅ 图片生成成功: {abs_path}")
-            return abs_path
-        else:
-            print(f"❌ 文件不存在: {abs_path}")
-            # 尝试当前目录
-            cwd = os.getcwd()
-            image_path2 = os.path.join(cwd, image_filename)
-            if os.path.exists(image_path2):
-                print(f"✅ 找到图片在当前目录: {image_path2}")
-                return image_path2
+    # 解析返回，获取图片 URL
+    try:
+        result_json = response.json()
+        if "choices" not in result_json:
+            print(f"❌ 响应格式错误: {json.dumps(result_json, indent=2)}")
             return None
-    else:
-        print(f"❌ 未能找到生成的图片路径")
+        
+        content = result_json["choices"][0]["message"]["content"]
+        
+        # 查找图片 URL
+        import re
+        image_url_match = re.search(r'https?://[^\s]+\.png', content)
+        if image_url_match:
+            image_url = image_url_match.group(0)
+            # 下载图片
+            print(f"✅ 获取图片 URL: {image_url}")
+            image_response = requests.get(image_url, timeout=60)
+            if image_response.status_code == 200:
+                # 保存到临时文件
+                generated_path = f"generated_{building_name.replace(' ', '_')}.png"
+                with open(generated_path, "wb") as f:
+                    f.write(image_response.content)
+                print(f"✅ 图片已下载: {generated_path}")
+                return os.path.abspath(generated_path)
+            else:
+                print(f"❌ 下载图片失败: {image_response.status_code}")
+                return None
+        else:
+            print(f"❌ 未找到图片 URL: {content}")
+            return None
+    except Exception as e:
+        print(f"❌ 解析响应错误: {e}")
         return None
-
-def download_image(url, save_path):
-    """这个函数现在不用了，因为 image-generate 已经下载好了"""
-    pass
 
 def compose_cover(main_title, sub_title, building_image_path, output_path):
     """合成最终封面 - 1:1 正方形"""
@@ -82,7 +93,7 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     image = Image.new('RGB', (size, size), background_color)
     draw = ImageDraw.Draw(image)
     
-    # 中文字体候选路径
+    # 中文字体候选路径 - Vercel 安装字体
     font_candidates = [
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
@@ -101,14 +112,7 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     except Exception as e:
         print(f"⚠️ 粘贴建筑背景失败: {e}，只用纯色背景")
     
-    # 添加主标题（金色）
-    # 尝试加载中文字体 - 系统中文字体路径
-    font_candidates = [
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-        "simhei.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
+    # 添加主标题（金色大字）
     main_font = None
     for font_path in font_candidates:
         try:
@@ -121,7 +125,6 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     
     # 金色 #d4af37
     main_color = (212, 175, 55)
-    shadow_color = (0, 0, 0)
     
     # 计算文字位置（参考效果图：标题占上方，15% 位置）
     main_bbox = draw.textbbox((0, 0), main_title, font=main_font)
@@ -130,13 +133,13 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     main_x = (size - main_width) // 2
     main_y = int(size * 0.15)
     
-    # 画文字阴影
+    # 绘制文字阴影增加可读性
+    shadow_color = (0, 0, 0)
     draw.text((main_x + 2, main_y + 2), main_title, font=main_font, fill=shadow_color)
-    # 画主文字
     draw.text((main_x, main_y), main_title, font=main_font, fill=main_color)
+    print("✅ 主标题已添加")
     
-    # 添加副标题（银色）
-    # 尝试加载中文字体 - 系统中文字体路径
+    # 添加副标题（银色小字）
     sub_font = None
     for font_path in font_candidates:
         try:
@@ -150,22 +153,20 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     # 银色 #c0c0c0
     sub_color = (192, 192, 192)
     
-    # 计算文字位置（参考效果图：副标题在标题下方，40% 位置）
+    # 计算文字位置（副标题在标题下方，40% 位置）
     sub_bbox = draw.textbbox((0, 0), sub_title, font=sub_font)
     sub_width = sub_bbox[2] - sub_bbox[0]
     sub_height = sub_bbox[3] - sub_bbox[1]
     sub_x = (size - sub_width) // 2
     sub_y = int(size * 0.40)
     
-    # 阴影
-    draw.text((sub_x + 1, sub_y + 1), sub_title, font=sub_font, fill=shadow_color)
-    # 主文字
+    # 绘制文字阴影
+    draw.text((sub_x + 2, sub_y + 2), sub_title, font=sub_font, fill=shadow_color)
     draw.text((sub_x, sub_y), sub_title, font=sub_font, fill=sub_color)
+    print("✅ 副标题已添加")
     
-    # 添加 logo（右上角浅色）
+    # 添加右上角 logo
     logo_text = "天津就业服务"
-    logo_color = (212, 175, 55)
-    # 尝试加载中文字体 - 系统中文字体路径
     logo_font = None
     for font_path in font_candidates:
         try:
@@ -176,62 +177,55 @@ def compose_cover(main_title, sub_title, building_image_path, output_path):
     if logo_font is None:
         logo_font = ImageFont.load_default(size=24)
     
-    # 右上角
+    # 浅色文字
+    logo_color = (150, 150, 150)
     logo_bbox = draw.textbbox((0, 0), logo_text, font=logo_font)
     logo_width = logo_bbox[2] - logo_bbox[0]
     logo_x = size - logo_width - 30
-    logo_y = 30
+    logo_y = 20
     draw.text((logo_x, logo_y), logo_text, font=logo_font, fill=logo_color)
+    print("✅ Logo 已添加")
     
-    # 保存
-    image.save(output_path, 'PNG')
+    # 保存最终图片
+    image.save(output_path, "PNG")
     print(f"✅ 封面已保存到: {output_path}")
     return True
 
 def main():
-    """主函数"""
-    print("🎨 小红书招聘封面生成器")
-    print("-" * 40)
-    
-    # 获取用户输入
-    if len(sys.argv) >= 4:
-        main_title = sys.argv[1]
-        sub_title = sys.argv[2]
-        building = sys.argv[3]
-    else:
-        print("请输入信息：")
-        main_title = input("主标题（金色大字）: ").strip()
-        sub_title = input("副标题（银色小字）: ").strip()
-        building = input("标志性建筑名称: ").strip()
-    
-    if not main_title or not sub_title or not building:
-        print("❌ 信息不全，请重新运行")
+    if len(sys.argv) != 4:
+        print("Usage: python xiaohongshu-cover-generator.py \"主标题\" \"副标题\" \"标志性建筑\"")
         sys.exit(1)
     
-    # 创建输出目录
-    output_dir = "./xiaohongshu-output"
+    main_title = sys.argv[1]
+    sub_title = sys.argv[2]
+    building = sys.argv[3]
+    
+    # 从环境变量获取 ARK API KEY
+    ark_api_key = os.environ.get("ARK_API_KEY")
+    if not ark_api_key:
+        print("❌ 环境变量 ARK_API_KEY 未设置")
+        sys.exit(1)
+    
+    # 生成建筑图片
+    building_image_path = generate_building_image(building, ark_api_key)
+    if not building_image_path:
+        sys.exit(1)
+    
+    # 生成输出文件名
+    import uuid
+    output_dir = "xiaohongshu-output/web"
     os.makedirs(output_dir, exist_ok=True)
+    output_filename = f"cover_{building.replace(' ', '_')}_{str(uuid.uuid4())[:8]}.png"
+    output_path = os.path.join(output_dir, output_filename)
     
-    # 生成文件名
-    timestamp = int(os.times()[4])
-    building_safe = building.replace(' ', '_').replace('/', '_')
-    output_path = os.path.join(output_dir, f"cover_{building_safe}_{timestamp}.png")
-    
-    # 1. 生成建筑图片
-    image_path = generate_building_image(building)
-    if not image_path:
-        print("❌ 生成图片失败")
+    # 合成封面
+    success = compose_cover(main_title, sub_title, building_image_path, output_path)
+    if success:
+        print(f"🎉 生成完成！输出文件: {os.path.abspath(output_path)}")
+        sys.exit(0)
+    else:
+        print("❌ 生成失败")
         sys.exit(1)
-    
-    # 2. 合成封面
-    if not compose_cover(main_title, sub_title, image_path, output_path):
-        print("❌ 合成封面失败")
-        sys.exit(1)
-    
-    print("-" * 40)
-    print(f"🎉 生成完成！输出文件: {os.path.abspath(output_path)}")
-    print("\n使用示例：")
-    print(f"  python {sys.argv[0]} \"天津河北区消防救援支队招聘\" \"19个名额，高中毕业就能报\" \"天津消防救援支队标志性建筑\"")
 
 if __name__ == "__main__":
     main()
