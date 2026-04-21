@@ -378,19 +378,7 @@ def generate_complete_cover(main_title, sub_title, building_name, api_key):
         # 获取第一张图片 URL
         image_url = result_json["data"][0]["url"]
         print(f"✅ 获取图片 URL: {image_url}")
-        
-        # 下载图片
-        image_response = requests.get(image_url, timeout=60)
-        if image_response.status_code == 200:
-            # 保存到临时文件
-            generated_path = f"/tmp/generated_{building_name.replace(' ', '_')}.png"
-            with open(generated_path, "wb") as f:
-                f.write(image_response.content)
-            print(f"✅ 图片已下载: {generated_path}")
-            return generated_path
-        else:
-            print(f"❌ 下载图片失败: {image_response.status_code}")
-            return None
+        return image_url
     except Exception as e:
         print(f"❌ 解析响应错误: {e}")
         return None
