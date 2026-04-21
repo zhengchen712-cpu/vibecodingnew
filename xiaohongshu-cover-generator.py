@@ -213,7 +213,7 @@ def main():
     
     # 生成输出文件名
     import uuid
-    output_dir = "xiaohongshu-output/web"
+    output_dir = "/tmp/xiaohongshu-output/web"
     os.makedirs(output_dir, exist_ok=True)
     output_filename = f"cover_{building.replace(' ', '_')}_{str(uuid.uuid4())[:8]}.png"
     output_path = os.path.join(output_dir, output_filename)

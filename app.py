@@ -15,7 +15,8 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
 # 配置
-OUTPUT_DIR = "./xiaohongshu-output/web"
+OUTPUT_DIR = "/tmp/xiaohongshu-output/web"
+# Vercel 只有 /tmp 可写，所以输出到这里
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # HTML 模板
