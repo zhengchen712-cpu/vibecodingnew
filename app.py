@@ -336,7 +336,7 @@ def generate_building_image(building_name, api_key):
     
     prompt = f"{building_name}，标志性建筑，专业摄影，高清，蓝色调渐变背景，适合做封面背景，构图下半部分是建筑，上半部分留白，安静专业氛围"
     
-    url = "https://ark.cn-beijing.volces.com/api/coding/v3/completions"
+    url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
