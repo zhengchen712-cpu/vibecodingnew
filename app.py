@@ -343,12 +343,13 @@ def generate_building_image(building_name, api_key):
         "Content-Type": "application/json"
     }
     
-    # 图片生成请求格式
+    # 图片生成请求格式 - doubao-seedream 需要满足最小 3686400 像素
+    # 1024 × 3072 = 3,145,728 接近，1536 × 2560 = 3,932,160 满足
     data = {
         "model": "doubao-seedream-4-5-251128",
         "prompt": prompt,
         "n": 1,
-        "size": "2048x2048",
+        "size": "1536x2560",
         "response_format": "url"
     }
     
