@@ -89,16 +89,25 @@ def generate_xiaohongshu_content(article_text):
             "temperature": 0.7,
             "max_tokens": 2000
         }
-        response = requests.post(MINIMAX_MODEL_ENDPOINT, headers=headers, json=data, timeout=30)
+        response = requests.post(MINIMAX_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
         print(f"API URL: {MINIMAX_MODEL_ENDPOINT}")
         print(f"API Status Code: {response.status_code}")
         print(f"API Response: {response.text}")
-        result = response.json()
         
-        if "choices" not in result:
-            return {"error": f"API返回错误: {result.get('error', {}).get('message', str(result))}"}
-            
-        content = result["choices"][0]["message"]["content"]
+        try:
+            result = response.json()
+        except Exception as e:
+            return {"error": f"API返回不是JSON: {str(e)}, 响应内容: {response.text[:200]}"}
+        
+        # MiniMax 格式兼容
+        if "choices" in result:
+            content = result["choices"][0]["message"]["content"]
+        elif "data" in result and "choices" in result["data"]:
+            content = result["data"]["choices"][0]["message"]["content"]
+        elif "reply" in result:
+            content = result["reply"]
+        else:
+            return {"error": f"API返回格式不对: {str(result)[:300]}"}
         
         # 尝试提取JSON
         json_match = re.search(r'\{[\s\S]*\}', content)
