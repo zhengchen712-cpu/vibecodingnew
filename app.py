@@ -81,7 +81,7 @@ def generate_xiaohongshu_content(article_text):
             "Authorization": f"Bearer {ARK_API_KEY}"
         }
         data = {
-            "model": "ep-20241225164251-7j8qz",
+            "model": "ep-20260429170019-522hs",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
             "max_tokens": 2000
