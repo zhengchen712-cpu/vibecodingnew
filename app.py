@@ -87,6 +87,9 @@ def generate_xiaohongshu_content(article_text):
             "max_tokens": 2000
         }
         response = requests.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=30)
+        print(f"API URL: {ARK_MODEL_ENDPOINT}")
+        print(f"API Key (first 10 chars): {ARK_API_KEY[:10]}...")
+        print(f"Model ID: {data['model']}")
         print(f"API Status Code: {response.status_code}")
         print(f"API Response: {response.text}")
         result = response.json()
