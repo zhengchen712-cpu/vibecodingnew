@@ -6,12 +6,10 @@
 """
 
 import os
-import re
-import json
-import requests
+import sys
+import subprocess
 import uuid
 from flask import Flask, request, send_file, jsonify, render_template_string
-from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -19,96 +17,8 @@ app = Flask(__name__)
 OUTPUT_DIR = "/tmp/xiaohongshu-output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 火山方舟API配置 - 封面生成+文案生成共用
+# 火山方舟API配置 - 封面生成
 ARK_API_KEY = os.environ.get("ARK_API_KEY", "2dab1b72-989e-494c-8f58-06b86464e9cd")
-ARK_MODEL_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
-
-# 抓取网页正文
-def fetch_article_content(url):
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        response = requests.get(url, headers=headers, timeout=10)
-        response.encoding = "utf-8"
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # 移除不需要的标签
-        for tag in soup(["script", "style", "nav", "footer", "aside", "header"]):
-            tag.decompose()
-        
-        # 提取正文
-        text = soup.get_text(separator="\n", strip=True)
-        # 清理多余空行
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        # 限制长度
-        return text[:5000]
-    except Exception as e:
-        return f"抓取失败: {str(e)}"
-
-# 生成小红书爆款文案
-def generate_xiaohongshu_content(article_text):
-    prompt = f"""
-请基于以下文章内容，生成3个不同风格的小红书爆款文案。
-
-文章内容：
-{article_text}
-
-要求：
-1. 每个文案包含：吸睛标题 + 正文（带emoji分点） + 5-8个精准标签
-2. 三个版本风格不同：
-   - 版本1【爆款标题党】：标题夸张有冲突感，抓人眼球，适合流量
-   - 版本2【干货长文版】：内容详实，有条理，适合收藏
-   - 版本3【情感共鸣版】：用第一人称讲故事，有代入感，容易引发评论
-3. 语言风格：小红书风格，口语化，用emoji，不用太正式
-4. 每段不要太长，适合手机阅读
-
-返回JSON格式：
-{{
-    "version1": {{
-        "title": "标题",
-        "content": "正文",
-        "tags": ["标签1", "标签2"]
-    }},
-    "version2": {{...}},
-    "version3": {{...}}
-}}
-"""
-    
-    try:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {ARK_API_KEY}"
-        }
-        data = {
-            "model": "ep-20260429170019-522hs",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "max_tokens": 2000
-        }
-        response = requests.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
-        print(f"API URL: {ARK_MODEL_ENDPOINT}")
-        print(f"API Status Code: {response.status_code}")
-        print(f"API Response: {response.text}")
-        
-        try:
-            result = response.json()
-        except Exception as e:
-            return {"error": f"API返回不是JSON: {str(e)}, 响应内容: {response.text[:200]}"}
-        
-        if "choices" not in result:
-            return {"error": f"API返回错误: {result.get('error', {}).get('message', str(result))}"}
-            
-        content = result["choices"][0]["message"]["content"]
-        
-        # 尝试提取JSON
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            return json.loads(json_match.group())
-        else:
-            return {"error": "生成格式不对，请重试", "raw": content}
-    except Exception as e:
-        return {"error": str(e)}
 
 # AGI188 统一风格 HTML 模板
 INDEX_HTML = """
@@ -219,8 +129,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Ne
   <!-- 爆款文案 Tab -->
   <div id="tab-copywriting" class="hidden">
     <div class="form-group">
-      <label class="form-label">粘贴文章链接</label>
-      <input class="form-input" id="article-url" placeholder="https://mp.weixin.qq.com/s/xxxxxx">
+      <label class="form-label">粘贴文章内容</label>
+      <textarea class="form-input" id="article-content" rows="10" placeholder="把公众号文章的正文内容粘贴到这里..."></textarea>
     </div>
     <button class="btn" onclick="generateCopywriting()">🚀 一键生成爆款文案</button>
     <div id="copywriting-loading" class="hidden loading">
@@ -283,12 +193,12 @@ async function generateCover() {
   btn.textContent = '🚀 生成封面';
 }
 
-// 生成爆款文案
+// 生成爆款文案 - 纯前端调用火山方舟API
 async function generateCopywriting() {
-  const url = document.getElementById('article-url').value.trim();
+  const content = document.getElementById('article-content').value.trim();
   
-  if (!url) {
-    showToast('请粘贴文章链接');
+  if (!content) {
+    showToast('请粘贴文章内容');
     return;
   }
   
@@ -298,41 +208,95 @@ async function generateCopywriting() {
   document.getElementById('copywriting-result').classList.add('hidden');
   
   try {
-    const res = await fetch('/generate-copywriting', {
+    // 构建Prompt
+    const prompt = `
+请基于以下文章内容，生成3个不同风格的小红书爆款文案。
+
+文章内容：
+${content.slice(0, 4000)}
+
+要求：
+1. 每个文案包含：吸睛标题 + 正文（带emoji分点） + 5-8个精准标签
+2. 三个版本风格不同：
+   - 版本1【爆款标题党】：标题夸张有冲突感，抓人眼球，适合流量
+   - 版本2【干货长文版】：内容详实，有条理，适合收藏
+   - 版本3【情感共鸣版】：用第一人称讲故事，有代入感，容易引发评论
+3. 语言风格：小红书风格，口语化，用emoji，不用太正式
+4. 每段不要太长，适合手机阅读
+
+返回纯JSON格式，不要有其他解释：
+{
+    "version1": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]},
+    "version2": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]},
+    "version3": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]}
+}
+`;
+    
+    // 直接从浏览器调用火山方舟API
+    const res = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: `url=${encodeURIComponent(url)}`
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 2dab1b72-989e-494c-8f58-06b86464e9cd'
+      },
+      body: JSON.stringify({
+        model: 'ep-20260429170019-522hs',
+        messages: [{role: 'user', content: prompt}],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
     });
+    
     const data = await res.json();
+    console.log('API响应:', data);
     
     if (data.error) {
-      showToast('生成失败: ' + data.error);
-    } else {
-      let html = '';
-      const versions = [
-        {key: 'version1', name: '🔥 版本1：爆款标题党'},
-        {key: 'version2', name: '📚 版本2：干货长文版'},
-        {key: 'version3', name: '💖 版本3：情感共鸣版'}
-      ];
-      
-      for (const v of versions) {
-        if (data[v.key]) {
-          const fullText = data[v.key].title + '\\n\\n' + data[v.key].content + '\\n\\n' + data[v.key].tags.map(t => '#' + t).join(' ');
-          html += `
-            <div class="result-card">
-              <h3>${v.name}</h3>
-              <div class="result-text">${escapeHtml(fullText)}</div>
-              <button class="copy-btn" onclick="copyText('${escapeJs(fullText)}')">📋 复制文案</button>
-            </div>
-          `;
-        }
-      }
-      
-      document.getElementById('copywriting-result').innerHTML = html;
-      document.getElementById('copywriting-result').classList.remove('hidden');
-      showToast('文案生成成功！');
+      showToast('生成失败: ' + data.error.message);
+      return;
     }
+    
+    if (!data.choices || !data.choices[0]) {
+      showToast('API返回格式不对');
+      return;
+    }
+    
+    // 提取内容并解析JSON
+    let resultText = data.choices[0].message.content;
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      showToast('生成格式不对，请重试');
+      return;
+    }
+    
+    const result = JSON.parse(jsonMatch[0]);
+    
+    // 渲染结果
+    let html = '';
+    const versions = [
+      {key: 'version1', name: '🔥 版本1：爆款标题党'},
+      {key: 'version2', name: '📚 版本2：干货长文版'},
+      {key: 'version3', name: '💖 版本3：情感共鸣版'}
+    ];
+    
+    for (const v of versions) {
+      if (result[v.key]) {
+        const fullText = result[v.key].title + '\n\n' + result[v.key].content + '\n\n' + result[v.key].tags.map(t => '#' + t).join(' ');
+        html += `
+          <div class="result-card">
+            <h3>${v.name}</h3>
+            <div class="result-text">${escapeHtml(fullText)}</div>
+            <button class="copy-btn" onclick="copyText('${escapeJs(fullText)}')">📋 复制文案</button>
+          </div>
+        `;
+      }
+    }
+    
+    document.getElementById('copywriting-result').innerHTML = html;
+    document.getElementById('copywriting-result').classList.remove('hidden');
+    showToast('文案生成成功！');
   } catch (e) {
+    console.error('错误:', e);
     showToast('出错了: ' + e.message);
   }
   
@@ -405,24 +369,6 @@ def generate():
             return jsonify({"success": False, "error": result.stderr or "生成失败"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
-
-@app.route('/generate-copywriting', methods=['POST'])
-def generate_copywriting():
-    try:
-        url = request.form.get('url', '')
-        if not url:
-            return jsonify({"error": "请输入链接"})
-        
-        # 抓取文章内容
-        article_text = fetch_article_content(url)
-        if "抓取失败" in article_text:
-            return jsonify({"error": article_text})
-        
-        # 生成文案
-        result = generate_xiaohongshu_content(article_text)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 @app.route('/output/<filename>')
 def output_file(filename):
