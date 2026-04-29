@@ -19,9 +19,12 @@ app = Flask(__name__)
 OUTPUT_DIR = "/tmp/xiaohongshu-output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# MiniMax API配置（海外访问更稳定）
+# MiniMax API配置 - 用于文案生成（海外Vercel访问更稳定）
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "sk-cp-QWtTW2ZfoUy28E5OCzdT2GWTJbnKNKSkvGYkjAFlqSycKAfbbhzGUafvYlxiUNuc2opjio58AO5cIeFqpR4COZRl_E3i-Kknr-yk3XIPNzUa-vmymLTUndY")
 MINIMAX_MODEL_ENDPOINT = "https://api.minimax.chat/v1/text/chatcompletion_v2"
+
+# 火山方舟API配置 - 用于封面生成
+ARK_API_KEY = os.environ.get("ARK_API_KEY", "2dab1b72-989e-494c-8f58-06b86464e9cd")
 
 # 抓取网页正文
 def fetch_article_content(url):
