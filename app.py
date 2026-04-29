@@ -19,12 +19,9 @@ app = Flask(__name__)
 OUTPUT_DIR = "/tmp/xiaohongshu-output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# MiniMax API配置 - 用于文案生成（海外Vercel访问更稳定）
-MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "sk-cp-QWtTW2ZfoUy28E5OCzdT2GWTJbnKNKSkvGYkjAFlqSycKAfbbhzGUafvYlxiUNuc2opjio58AO5cIeFqpR4COZRl_E3i-Kknr-yk3XIPNzUa-vmymLTUndY")
-MINIMAX_MODEL_ENDPOINT = "https://api.minimax.chat/v1/text/chatcompletion_v2"
-
-# 火山方舟API配置 - 用于封面生成
+# 火山方舟API配置 - 封面生成+文案生成共用
 ARK_API_KEY = os.environ.get("ARK_API_KEY", "2dab1b72-989e-494c-8f58-06b86464e9cd")
+ARK_MODEL_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 
 # 抓取网页正文
 def fetch_article_content(url):
@@ -81,16 +78,16 @@ def generate_xiaohongshu_content(article_text):
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {MINIMAX_API_KEY}"
+            "Authorization": f"Bearer {ARK_API_KEY}"
         }
         data = {
-            "model": "abab6.5-chat",
+            "model": "ep-20260429170019-522hs",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
             "max_tokens": 2000
         }
-        response = requests.post(MINIMAX_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
-        print(f"API URL: {MINIMAX_MODEL_ENDPOINT}")
+        response = requests.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
+        print(f"API URL: {ARK_MODEL_ENDPOINT}")
         print(f"API Status Code: {response.status_code}")
         print(f"API Response: {response.text}")
         
@@ -99,15 +96,10 @@ def generate_xiaohongshu_content(article_text):
         except Exception as e:
             return {"error": f"API返回不是JSON: {str(e)}, 响应内容: {response.text[:200]}"}
         
-        # MiniMax 格式兼容
-        if "choices" in result:
-            content = result["choices"][0]["message"]["content"]
-        elif "data" in result and "choices" in result["data"]:
-            content = result["data"]["choices"][0]["message"]["content"]
-        elif "reply" in result:
-            content = result["reply"]
-        else:
-            return {"error": f"API返回格式不对: {str(result)[:300]}"}
+        if "choices" not in result:
+            return {"error": f"API返回错误: {result.get('error', {}).get('message', str(result))}"}
+            
+        content = result["choices"][0]["message"]["content"]
         
         # 尝试提取JSON
         json_match = re.search(r'\{[\s\S]*\}', content)
