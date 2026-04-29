@@ -279,14 +279,16 @@ ${content.slice(0, 4000)}
       {key: 'version3', name: '💖 版本3：情感共鸣版'}
     ];
     
-    for (const v of versions) {
+    for (let i = 0; i < versions.length; i++) {
+      const v = versions[i];
       if (result[v.key]) {
         const fullText = result[v.key].title + '\n\n' + result[v.key].content + '\n\n' + result[v.key].tags.map(t => '#' + t).join(' ');
+        window['copyText' + i] = fullText;
         html += `
           <div class="result-card">
             <h3>${v.name}</h3>
             <div class="result-text">${escapeHtml(fullText)}</div>
-            <button class="copy-btn" onclick="copyText('${escapeJs(fullText)}')">📋 复制文案</button>
+            <button class="copy-btn" onclick="copyText(copyText${i})">📋 复制文案</button>
           </div>
         `;
       }
@@ -325,9 +327,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-function escapeJs(text) {
-  return text.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/\\n/g, '\\\\n');
 }
 </script>
 </body>
