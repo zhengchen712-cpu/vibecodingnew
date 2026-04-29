@@ -15,8 +15,8 @@ from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-# 配置
-OUTPUT_DIR = "./xiaohongshu-output/web"
+# 配置 - Vercel只允许/tmp目录写文件
+OUTPUT_DIR = "/tmp/xiaohongshu-output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ARK API配置
