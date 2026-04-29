@@ -249,7 +249,7 @@ INDEX_HTML = """
 
             <div class="form-group">
                 <label for="building">标志性建筑/机构描述</label>
-                <input type="text" id="building" placeholder="例如：天津消防救援总队大门建筑" required>
+                <input type="text" id="building" placeholder="例如：天津消防救援总队大门建筑" required> 
             </div>
 
             <button type="submit" class="generate-btn" id="generateBtn">生成封面</button>
