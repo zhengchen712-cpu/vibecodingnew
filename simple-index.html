@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
+<title>小红书图文生成器 - AGI188</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#000;--text:#f5f5f7;--sub:#86868b;--dim:#48484a;--blue:#2997ff;--purple:#bf5af2;--border:#333;--success:#30d158}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+.nav{position:fixed;top:0;left:0;right:0;z-index:99;background:rgba(0,0,0,0.72);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(255,255,255,0.04)}
+.nav-in{max-width:960px;margin:0 auto;padding:0 24px;height:48px;display:flex;justify-content:space-between;align-items:center}
+.nav-brand{font-size:16px;font-weight:700;letter-spacing:0.02em;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.main{max-width:700px;margin:0 auto;padding:100px 24px 80px}
+.hero{text-align:center;margin-bottom:48px}
+.hero-icon{font-size:64px;margin-bottom:16px}
+.hero h1{font-size:40px;font-weight:700;letter-spacing:-0.03em;margin-bottom:8px;background:linear-gradient(180deg,#f5f5f7,#a1a1a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.tabs{display:flex;gap:8px;margin-bottom:32px;background:rgba(255,255,255,0.04);padding:6px;border-radius:12px}
+.tab{flex:1;padding:12px 16px;border-radius:8px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border:none;background:transparent;color:var(--sub)}
+.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
+.tab:hover:not(.active){background:rgba(255,255,255,0.08);color:var(--text)}
+.form-group{margin-bottom:24px}
+.form-label{display:block;font-size:13px;font-weight:600;color:var(--sub);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em}
+.form-input,textarea{width:100%;padding:16px 20px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:16px;color:var(--text);font-size:16px;font-family:inherit;transition:all 0.2s;outline:none}
+textarea{resize:vertical;min-height:180px}
+.form-input:focus,textarea:focus{border-color:var(--purple);background:rgba(255,255,255,0.06)}
+::placeholder{color:var(--dim)}
+.btn{width:100%;padding:18px 24px;background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:16px;color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(75,118,252,0.25)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.result-card{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px}
+.result-card h3{font-size:18px;margin-bottom:16px;color:var(--success)}
+.result-text{white-space:pre-wrap;line-height:1.8;font-size:15px;color:var(--text);margin-bottom:16px}
+.copy-btn{padding:10px 20px;background:rgba(255,255,255,0.08);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.copy-btn:hover{background:rgba(255,255,255,0.12)}
+.hidden{display:none!important}
+.loading{text-align:center;padding:40px}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);padding:12px 24px;background:var(--success);color:#fff;border-radius:12px;font-size:14px;font-weight:600;z-index:1000;animation:fadeInUp 0.3s ease}
+@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-in">
+    <div class="nav-brand">🎨 小红书图文生成器</div>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="hero">
+    <div class="hero-icon">🚀</div>
+    <h1>10秒出爆款</h1>
+    <p style="color:var(--sub);font-size:17px">AI 自动写文案 + 生成封面，一站式搞定</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab1-btn">🎨 封面生成</button>
+    <button class="tab" id="tab2-btn">📝 爆款文案</button>
+  </div>
+
+  <!-- 封面生成 -->
+  <div id="tab1">
+    <div class="form-group">
+      <label class="form-label">主标题</label>
+      <input class="form-input" id="title" placeholder="例如：天津落户最新政策2026">
+    </div>
+    <div class="form-group">
+      <label class="form-label">副标题</label>
+      <input class="form-input" id="subtitle" placeholder="例如：这5类人直接落户，别再跑冤枉路了">
+    </div>
+    <div class="form-group">
+      <label class="form-label">地标建筑</label>
+      <input class="form-input" id="landmark" placeholder="例如：天津之眼 / 不填就不用地标">
+    </div>
+    <button class="btn" id="btn-cover">🚀 生成封面</button>
+    <div id="cover-result" class="hidden" style="margin-top:32px;text-align:center"></div>
+  </div>
+
+  <!-- 爆款文案 -->
+  <div id="tab2" class="hidden">
+    <div class="form-group">
+      <label class="form-label">粘贴文章内容</label>
+      <textarea id="article-content" placeholder="把公众号文章的正文内容粘贴到这里..."></textarea>
+    </div>
+    <button class="btn" id="btn-copy">🚀 一键生成爆款文案</button>
+    <div id="copy-loading" class="hidden loading">
+      <div class="spinner"></div>
+      <p style="color:var(--sub)">AI 正在分析文章，生成3版文案...</p>
+    </div>
+    <div id="copy-result" class="hidden" style="margin-top:32px"></div>
+  </div>
+</main>
+
+<script>
+// 全局缓存文案
+const copyCache = [];
+
+// Tab 切换
+document.getElementById('tab1-btn').onclick = function() {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  this.classList.add('active');
+  document.getElementById('tab1').classList.remove('hidden');
+  document.getElementById('tab2').classList.add('hidden');
+};
+document.getElementById('tab2-btn').onclick = function() {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  this.classList.add('active');
+  document.getElementById('tab2').classList.remove('hidden');
+  document.getElementById('tab1').classList.add('hidden');
+};
+
+// 生成封面
+document.getElementById('btn-cover').onclick = async function() {
+  const title = document.getElementById('title').value.trim();
+  const subtitle = document.getElementById('subtitle').value.trim();
+  const landmark = document.getElementById('landmark').value.trim();
+  
+  if (!title) {
+    showToast('请输入主标题');
+    return;
+  }
+  
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  
+  try {
+    const form = new FormData();
+    form.append('title', title);
+    form.append('subtitle', subtitle);
+    form.append('landmark', landmark);
+    
+    const res = await fetch('/generate', {
+      method: 'POST',
+      body: form
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      document.getElementById('cover-result').innerHTML = `
+        <img src="${data.url}" style="max-width:100%;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <div style="margin-top:16px">
+          <a href="${data.url}" download="xiaohongshu-cover.png" style="display:inline-block;padding:12px 24px;background:var(--success);color:#fff;border-radius:12px;text-decoration:none;font-weight:600">📥 下载封面</a>
+        </div>
+      `;
+      document.getElementById('cover-result').classList.remove('hidden');
+      showToast('封面生成成功！');
+    } else {
+      showToast('生成失败: ' + data.error);
+    }
+  } catch (e) {
+    showToast('出错了: ' + e.message);
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🚀 生成封面';
+};
+
+// 生成爆款文案
+document.getElementById('btn-copy').onclick = async function() {
+  const content = document.getElementById('article-content').value.trim();
+  
+  if (!content) {
+    showToast('请粘贴文章内容');
+    return;
+  }
+  
+  const btn = this;
+  btn.disabled = true;
+  document.getElementById('copy-loading').classList.remove('hidden');
+  document.getElementById('copy-result').classList.add('hidden');
+  
+  try {
+    const prompt = `
+请基于以下文章内容，生成3个不同风格的小红书爆款文案。
+
+文章内容：
+${content.slice(0, 4000)}
+
+要求：
+1. 每个文案包含：吸睛标题 + 正文（带emoji分点） + 5-8个精准标签
+2. 三个版本风格不同：
+   - 版本1【爆款标题党】：标题夸张有冲突感，抓人眼球，适合流量
+   - 版本2【干货长文版】：内容详实，有条理，适合收藏
+   - 版本3【情感共鸣版】：用第一人称讲故事，有代入感，容易引发评论
+3. 语言风格：小红书风格，口语化，用emoji，不用太正式
+4. 每段不要太长，适合手机阅读
+
+返回纯JSON格式，不要有其他解释：
+{
+    "version1": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]},
+    "version2": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]},
+    "version3": {"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]}
+}
+`;
+    
+    const res = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 2dab1b72-989e-494c-8f58-06b86464e9cd'
+      },
+      body: JSON.stringify({
+        model: 'ep-20260429170019-522hs',
+        messages: [{role: 'user', content: prompt}],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+    
+    const data = await res.json();
+    console.log('API响应:', data);
+    
+    if (data.error) {
+      showToast('生成失败: ' + data.error.message);
+      return;
+    }
+    
+    if (!data.choices || !data.choices[0]) {
+      showToast('API返回格式不对');
+      return;
+    }
+    
+    let resultText = data.choices[0].message.content;
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      showToast('生成格式不对，请重试');
+      return;
+    }
+    
+    const result = JSON.parse(jsonMatch[0]);
+    
+    let html = '';
+    const versions = [
+      {key: 'version1', name: '🔥 版本1：爆款标题党'},
+      {key: 'version2', name: '📚 版本2：干货长文版'},
+      {key: 'version3', name: '💖 版本3：情感共鸣版'}
+    ];
+    
+    for (let i = 0; i < versions.length; i++) {
+      const v = versions[i];
+      if (result[v.key]) {
+        const fullText = result[v.key].title + '\n\n' + result[v.key].content + '\n\n' + result[v.key].tags.map(t => '#' + t).join(' ');
+        copyCache[i] = fullText;
+        html += `
+          <div class="result-card">
+            <h3>${v.name}</h3>
+            <div class="result-text">${escapeHtml(fullText)}</div>
+            <button class="copy-btn" onclick="doCopy(${i})">📋 复制文案</button>
+          </div>
+        `;
+      }
+    }
+    
+    document.getElementById('copy-result').innerHTML = html;
+    document.getElementById('copy-result').classList.remove('hidden');
+    showToast('文案生成成功！');
+  } catch (e) {
+    console.error('错误:', e);
+    showToast('出错了: ' + e.message);
+  }
+  
+  btn.disabled = false;
+  document.getElementById('copy-loading').classList.add('hidden');
+};
+
+function doCopy(idx) {
+  navigator.clipboard.writeText(copyCache[idx]).then(() => {
+    showToast('已复制到剪贴板！');
+  });
+}
+
+function showToast(msg) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
