@@ -83,8 +83,8 @@ textarea{resize:vertical;min-height:180px}
   <!-- 爆款文案 -->
   <div id="tab2" class="hidden">
     <div class="form-group">
-      <label class="form-label">粘贴文章内容</label>
-      <textarea id="article-content" placeholder="把公众号文章的正文内容粘贴到这里..."></textarea>
+      <label class="form-label">粘贴文章链接 OR 粘贴正文内容</label>
+      <textarea id="article-content" placeholder="两种方式都可以：&#10;1）直接粘贴文章链接（自动抓取内容）&#10;2）或者直接粘贴文章正文内容"></textarea>
     </div>
     <button class="btn" id="btn-copy">🚀 一键生成爆款文案</button>
     <div id="copy-loading" class="hidden loading">
@@ -162,10 +162,10 @@ document.getElementById('btn-cover').onclick = async function() {
 
 // 生成爆款文案
 document.getElementById('btn-copy').onclick = async function() {
-  const content = document.getElementById('article-content').value.trim();
+  let content = document.getElementById('article-content').value.trim();
   
   if (!content) {
-    showToast('请粘贴文章内容');
+    showToast('请粘贴文章链接或正文内容');
     return;
   }
   
@@ -175,6 +175,18 @@ document.getElementById('btn-copy').onclick = async function() {
   document.getElementById('copy-result').classList.add('hidden');
   
   try {
+    // 判断是不是URL，如果是就自动抓取正文
+    if (content.startsWith('http://') || content.startsWith('https://')) {
+      showToast('正在抓取文章内容...');
+      const form = new FormData();
+      form.append('url', content);
+      const fetchRes = await fetch('/fetch-content', {method: 'POST', body: form});
+      const fetchData = await fetchRes.json();
+      if (fetchData.error) throw new Error(fetchData.error);
+      content = fetchData.content;
+      showToast('抓取成功！正在生成文案...');
+    }
+    
     const prompt = `
 【重要提醒】：你必须100%严格基于下面提供的文章内容生成小红书文案，绝对不要使用你之前的任何旧记忆！绝对不要生成和下面文章无关的内容！如果文章是关于天津三支一扶的，绝对不要生成深圳辅警、公务员考试等不相关内容！
 
