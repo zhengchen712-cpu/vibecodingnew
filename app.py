@@ -19,9 +19,9 @@ app = Flask(__name__)
 OUTPUT_DIR = "/tmp/xiaohongshu-output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# ARK API配置
-ARK_API_KEY = os.environ.get("ARK_API_KEY", "2dab1b72-989e-494c-8f58-06b86464e9cd")
-ARK_MODEL_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+# MiniMax API配置（海外访问更稳定）
+MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "sk-cp-QWtTW2ZfoUy28E5OCzdT2GWTJbnKNKSkvGYkjAFlqSycKAfbbhzGUafvYlxiUNuc2opjio58AO5cIeFqpR4COZRl_E3i-Kknr-yk3XIPNzUa-vmymLTUndY")
+MINIMAX_MODEL_ENDPOINT = "https://api.minimax.chat/v1/text/chatcompletion_v2"
 
 # 抓取网页正文
 def fetch_article_content(url):
@@ -78,24 +78,16 @@ def generate_xiaohongshu_content(article_text):
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {ARK_API_KEY}"
+            "Authorization": f"Bearer {MINIMAX_API_KEY}"
         }
         data = {
-            "model": "ep-20260429170019-522hs",
+            "model": "abab6.5-chat",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
             "max_tokens": 2000
         }
-        # 增加超时和重试
-        from requests.adapters import HTTPAdapter
-        from urllib3.util.retry import Retry
-        session = requests.Session()
-        retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-        session.mount('https://', HTTPAdapter(max_retries=retry))
-        response = session.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
-        print(f"API URL: {ARK_MODEL_ENDPOINT}")
-        print(f"API Key (first 10 chars): {ARK_API_KEY[:10]}...")
-        print(f"Model ID: {data['model']}")
+        response = requests.post(MINIMAX_MODEL_ENDPOINT, headers=headers, json=data, timeout=30)
+        print(f"API URL: {MINIMAX_MODEL_ENDPOINT}")
         print(f"API Status Code: {response.status_code}")
         print(f"API Response: {response.text}")
         result = response.json()
