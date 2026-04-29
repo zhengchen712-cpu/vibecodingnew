@@ -87,7 +87,13 @@ def generate_xiaohongshu_content(article_text):
             "max_tokens": 2000
         }
         response = requests.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=30)
+        print(f"API Status Code: {response.status_code}")
+        print(f"API Response: {response.text}")
         result = response.json()
+        
+        if "choices" not in result:
+            return {"error": f"API返回错误: {result.get('error', {}).get('message', str(result))}"}
+            
         content = result["choices"][0]["message"]["content"]
         
         # 尝试提取JSON
