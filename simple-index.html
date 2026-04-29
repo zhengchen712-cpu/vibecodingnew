@@ -175,16 +175,35 @@ document.getElementById('btn-copy').onclick = async function() {
   document.getElementById('copy-result').classList.add('hidden');
   
   try {
-    // 判断是不是URL，如果是就自动抓取正文
+    // 判断是不是URL，如果是就自动抓取正文（用CORS代理解决403问题）
     if (content.startsWith('http://') || content.startsWith('https://')) {
       showToast('正在抓取文章内容...');
-      const form = new FormData();
-      form.append('url', content);
-      const fetchRes = await fetch('/fetch-content', {method: 'POST', body: form});
-      const fetchData = await fetchRes.json();
-      if (fetchData.error) throw new Error(fetchData.error);
-      content = fetchData.content;
-      showToast('抓取成功！正在生成文案...');
+      try {
+        // 方法1：用 allorigins.win CORS 代理（能绕过大部分限制）
+        const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(content);
+        const proxyRes = await fetch(proxyUrl);
+        const proxyData = await proxyRes.json();
+        if (proxyData.contents) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(proxyData.contents, 'text/html');
+          // 移除不需要的标签
+          doc.querySelectorAll('script, style, nav, footer, aside, header').forEach(el => el.remove());
+          // 提取正文
+          content = doc.body.innerText.replace(/\n{3,}/g, '\n\n').slice(0, 5000);
+          showToast('抓取成功！正在生成文案...');
+        } else {
+          throw new Error('代理抓取失败');
+        }
+      } catch (e) {
+        // 代理失败就回退到后端
+        const form = new FormData();
+        form.append('url', content);
+        const fetchRes = await fetch('/fetch-content', {method: 'POST', body: form});
+        const fetchData = await fetchRes.json();
+        if (fetchData.error) throw new Error(fetchData.error);
+        content = fetchData.content;
+        showToast('抓取成功！正在生成文案...');
+      }
     }
     
     const prompt = `
