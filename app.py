@@ -86,7 +86,13 @@ def generate_xiaohongshu_content(article_text):
             "temperature": 0.7,
             "max_tokens": 2000
         }
-        response = requests.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=30)
+        # 增加超时和重试
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        session = requests.Session()
+        retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+        session.mount('https://', HTTPAdapter(max_retries=retry))
+        response = session.post(ARK_MODEL_ENDPOINT, headers=headers, json=data, timeout=60)
         print(f"API URL: {ARK_MODEL_ENDPOINT}")
         print(f"API Key (first 10 chars): {ARK_API_KEY[:10]}...")
         print(f"Model ID: {data['model']}")
