@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
+<title>小红书图文生成器 - AGI188</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#000;--text:#f5f5f7;--sub:#86868b;--dim:#48484a;--blue:#2997ff;--purple:#bf5af2;--border:#333;--success:#30d158;--gold:#ffd700}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+.nav{position:fixed;top:0;left:0;right:0;z-index:99;background:rgba(0,0,0,0.72);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(255,255,255,0.04)}
+.nav-in{max-width:960px;margin:0 auto;padding:0 24px;height:48px;display:flex;justify-content:space-between;align-items:center}
+.nav-brand{font-size:16px;font-weight:700;letter-spacing:0.02em;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.main{max-width:800px;margin:0 auto;padding:100px 24px 80px}
+.hero{text-align:center;margin-bottom:40px}
+.hero-icon{font-size:54px;margin-bottom:12px}
+.hero h1{font-size:36px;font-weight:700;letter-spacing:-0.03em;margin-bottom:6px;background:linear-gradient(180deg,#f5f5f7,#a1a1a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.tabs{display:flex;gap:6px;margin-bottom:28px;background:rgba(255,255,255,0.04);padding:5px;border-radius:12px}
+.tab{flex:1;padding:11px 14px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;border:none;background:transparent;color:var(--sub)}
+.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
+.tab:hover:not(.active){background:rgba(255,255,255,0.08);color:var(--text)}
+.form-group{margin-bottom:22px}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em}
+.form-input,textarea{width:100%;padding:15px 18px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;color:var(--text);font-size:15px;font-family:inherit;transition:all 0.2s;outline:none}
+textarea{resize:vertical;min-height:160px;line-height:1.6}
+.form-input:focus,textarea:focus{border-color:var(--purple);background:rgba(255,255,255,0.06)}
+::placeholder{color:var(--dim)}
+.btn{width:100%;padding:16px 24px;background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:14px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(75,118,252,0.25)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-sm{width:auto;padding:10px 18px;font-size:13px;display:inline-flex}
+.btn-sm2{padding:8px 14px;font-size:12px;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--text)}
+.result-card{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:14px}
+.result-card h3{font-size:17px;margin-bottom:14px;color:var(--success)}
+.result-text{white-space:pre-wrap;line-height:1.7;font-size:14px;color:var(--text);margin-bottom:14px}
+.copy-btn{padding:9px 18px;background:rgba(255,255,255,0.08);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.copy-btn:hover{background:rgba(255,255,255,0.12)}
+.hidden{display:none!important}
+.loading{text-align:center;padding:40px}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);padding:12px 24px;background:var(--success);color:#fff;border-radius:12px;font-size:14px;font-weight:600;z-index:1000;animation:fadeInUp 0.3s ease}
+@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* Article list styles */
+.article-filter{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.article-filter select,.article-filter input{background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:10px;font-size:12px;outline:none;font-family:inherit}
+.article-filter input{flex:1;min-width:120px}
+.article-filter select:focus,.article-filter input:focus{border-color:var(--purple)}
+.article-list{max-height:420px;overflow-y:auto}
+.article-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-radius:10px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;margin-bottom:4px}
+.article-item:hover{background:rgba(255,255,255,0.04);border-color:var(--border)}
+.article-item.selected{background:rgba(191,90,242,0.1);border-color:var(--purple)}
+.article-item .cat-badge{font-size:10px;padding:2px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0;font-weight:600}
+.cat-recruit{background:rgba(48,209,88,0.15);color:var(--success)}
+.cat-exam{background:rgba(255,159,10,0.15);color:#ff9f0a}
+.cat-police{background:rgba(41,151,255,0.15);color:var(--blue)}
+.cat-notice{background:rgba(191,90,242,0.15);color:var(--purple)}
+.cat-sanzhi{background:rgba(255,55,95,0.15);color:#ff375f}
+.article-item .art-info{flex:1;min-width:0}
+.article-item .art-title{font-size:13px;line-height:1.4;color:var(--text)}
+.article-item .art-meta{font-size:10px;color:var(--dim);margin-top:3px}
+.article-hint{text-align:center;padding:30px 20px;color:var(--dim)}
+.article-hint .icon{font-size:36px;margin-bottom:8px}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.tag-item{padding:3px 10px;border-radius:10px;font-size:11px;background:rgba(255,255,255,0.06);color:var(--sub);cursor:pointer;border:1px solid transparent}
+.tag-item.selected{background:rgba(191,90,242,0.15);color:var(--purple);border-color:var(--purple)}
+.flex-row{display:flex;gap:8px}
+.flex-row .btn{flex:1}
+.badge-new{display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:var(--purple);color:#fff;margin-left:4px}
+.copy-success{animation:fadeInUp 0.3s ease}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-in">
+    <div class="nav-brand">🎨 小红书图文生成器</div>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="hero">
+    <div class="hero-icon">🚀</div>
+    <h1>10秒出爆款</h1>
+    <p style="color:var(--sub);font-size:16px">公告抓取 → AI写文案 → 生成封面，一站式搞定</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab0-btn">📋 公告列表<span class="badge-new">NEW</span></button>
+    <button class="tab" id="tab1-btn">🎨 封面生成</button>
+    <button class="tab" id="tab2-btn">📝 爆款文案</button>
+  </div>
+
+  <!-- Tab 0: 公告列表 -->
+  <div id="tab0">
+    <div class="article-filter">
+      <select id="siteFilter" onchange="filterArticles()"><option value="all">全部站点</option><option value="hrss_rsksw">天津人事考试网</option><option value="hrss_sydw">人社局·事业单位招聘</option><option value="hrss_gggs">人社局·公告公示</option><option value="huijun">天津荟骏</option></select>
+      <select id="catFilter" onchange="filterArticles()"><option value="all">全部类型</option><option value="招聘">招聘</option><option value="考试">考试</option><option value="辅警/消防">辅警/消防</option><option value="三支一扶">三支一扶</option><option value="公示">公示</option></select>
+      <input type="text" id="searchInput" placeholder="搜索公告..." oninput="filterArticles()">
+    </div>
+    <div class="article-list" id="articleList"></div>
+    <div id="articleHint" class="article-hint"><div class="icon">👆</div><div>请选择公告，自动填入文案生成器</div></div>
+  </div>
+
+  <!-- Tab 1: 封面生成 -->
+  <div id="tab1" class="hidden">
+    <div class="form-group">
+      <label class="form-label">主标题</label>
+      <input class="form-input" id="title" placeholder="例如：天津落户最新政策2026">
+    </div>
+    <div class="form-group">
+      <label class="form-label">副标题</label>
+      <input class="form-input" id="subtitle" placeholder="例如：这5类人直接落户，别再跑冤枉路了">
+    </div>
+    <div class="form-group">
+      <label class="form-label">地标建筑</label>
+      <input class="form-input" id="landmark" placeholder="例如：天津之眼 / 不填就不用地标">
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-sm2" onclick="fillFromArticle()" style="flex:1">📋 从公告填充标题</button>
+      <button class="btn" id="btn-cover" style="flex:2">🚀 生成封面</button>
+    </div>
+    <div id="cover-result" class="hidden" style="margin-top:28px;text-align:center"></div>
+  </div>
+
+  <!-- Tab 2: 爆款文案 -->
+  <div id="tab2" class="hidden">
+    <div class="form-group">
+      <label class="form-label">文章链接 或 直接粘贴内容 <span style="color:var(--dim);font-weight:400">（从公告列表选择自动填入链接）</span></label>
+      <textarea id="article-content" placeholder="两种方式：&#10;1）从公告列表选择 → 自动填入链接&#10;2）直接粘贴文章正文内容"></textarea>
+    </div>
+    <button class="btn" id="btn-copy">🚀 一键生成爆款文案</button>
+    <div id="copy-loading" class="hidden loading">
+      <div class="spinner"></div>
+      <p style="color:var(--sub)">AI 正在分析内容，生成3版文案...</p>
+    </div>
+    <div id="copy-result" class="hidden" style="margin-top:28px"></div>
+  </div>
+</main>
+
+<script>
+const ARTICLES = [{"site": "天津人事考试网", "siteId": "hrss_rsksw", "title": "天津市2026年度高级经济专业技术资格考试、二...", "link": "https://hrss.tj.gov.cn/jsdw/rsksw/tzgg4/202605/t20260526_7305869.html", "category": "考试"}, {"site": "天津人事考试网", "siteId": "hrss_rsksw", "title": "关于天津市2026年度审计专业技术资格考试报名...", "link": "https://hrss.tj.gov.cn/jsdw/rsksw/tzgg4/202605/t20260512_7297615.html", "category": "考试"}, {"site": "天津人事考试网", "siteId": "hrss_rsksw", "title": "中国北方人才市场（天津市人才服务中心）2026...", "link": "https://hrss.tj.gov.cn/jsdw/rsksw/tzgg4/202605/t20260507_7294580.html", "category": "招聘"}, {"site": "天津人事考试网", "siteId": "hrss_rsksw", "title": "关于天津市2026年度翻译专业资格（水平）考试...", "link": "https://hrss.tj.gov.cn/jsdw/rsksw/tzgg4/202604/t20260421_7285362.html", "category": "考试"}, {"site": "人社局·事业单位招聘", "siteId": "hrss_sydw", "title": "天津市部分事业单位公开招聘信息 2026-06-04", "link": "https://hrss.tj.gov.cn/ztzl/ztzl1/sydwgkzp/202606/t20260603_7311140.html", "category": "招聘"}, {"site": "人社局·事业单位招聘", "siteId": "hrss_sydw", "title": "关于天津市宝坻区教育系统2026年公开招聘工作人员补充公告 2026-05-08", "link": "https://hrss.tj.gov.cn/ztzl/ztzl1/sydwgkzp/202605/t20260508_7295432.html", "category": "公示"}, {"site": "人社局·事业单位招聘", "siteId": "hrss_sydw", "title": "关于调整天津市药品检验研究院2026年公开招聘高层次人才资格复审时间的补充公告 2026-04-15", "link": "https://hrss.tj.gov.cn/ztzl/ztzl1/sydwgkzp/202604/t20260415_7282540.html", "category": "考试"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "职工因病或非因工致残完全丧失劳动能力鉴定结论公示（2026年第6期） 2026-06-04", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202606/t20260604_7311707.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "关于开展2026年度清理整顿人力资源市场秩序“双随机、一公开”专项行动方案 2026-05-27", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202605/t20260527_7306294.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "关于专业技术人员职业资格考试和职称评审相关服务的温馨提示 2026-05-08", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202605/t20260508_7295030.html", "category": "考试"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "中国北方人才市场（天津市人才服务中心）2026年度公开招聘高层次人才公告 2026-05-08", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202605/t20260507_7294494.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津铁道职业技术学院2026年度公开招聘高层次人才公告 2026-05-08", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202605/t20260507_7294515.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市2026年度招募高校毕业生到基层从事“三支一扶”工作的公告 2026-04-29", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202604/t20260429_7291350.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市工程建设领域已办理工资保证金项目台账（截止2026年3月有效） 2026-04-20", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202604/t20260420_7284189.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市劳动经济学校（天津市人力资源和社会保障局第二高级技工学校）2026年度公开招聘... 2026-04-15", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202604/t20260414_7281851.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "“京津冀人社协同：创新实践与未来展望”主题征文启事 2026-04-14", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202604/t20260413_7280761.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市人力资源和社会保障局2026年度“双随机、一公开”执法检查计划 2026-03-25", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202603/t20260324_7268246.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "法治赋能强监管 普法护航惠民生 奋力推动人社执法高质量发展 2026-03-23", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202603/t20260320_7266481.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "全市人社系统2026年度涉企行政检查计划 2026-03-05", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202603/t20260305_7256320.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市人力资源和社会保障局所属事业单位2026年度第二批公开招聘公告 2026-03-05", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202603/t20260304_7255080.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市人力资源和社会保障局所属事业单位2026年度第一批公开招聘公告 2026-03-03", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202603/t20260302_7253423.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "市人社局关于2025年度治理欠薪冬季专项行动检查结果的公示 2026-02-28", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202602/t20260226_7251032.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "天津市人力资源和社会保障局2025年度行政执法工作情况报告 2026-01-30", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202601/t20260130_7236119.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "2026年度天津市劳动人事争议仲裁员公示（2026年1月） 2026-01-29", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202601/t20260129_7234599.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "2025年天津市人力资源服务机构等级评定机构名单 2026-01-23", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202601/t20260123_7230481.html", "category": "招聘"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "关于对天津力神聚元新能源科技有限公司给予行政处罚的公示 2026-01-16", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202601/t20260115_7223612.html", "category": "公示"}, {"site": "人社局·公告公示", "siteId": "hrss_gggs", "title": "政府网站工作年度报表（2025年度） 2026-01-14", "link": "https://hrss.tj.gov.cn/xinwenzixun/gggsnew/202601/t20260114_7223441.html", "category": "招聘"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "「专栏」天津市公安局静海分局关于面向社会公开招聘警务辅助人员公告", "link": "http://www.tj-huijun.com/news_details.html?newsid=3519359&_t=1756358342", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "「专栏」天津市公安局河北分局关于面向社会公开招聘警务辅助人员公告", "link": "http://www.tj-huijun.com/news_details.html?newsid=3390703&_t=1752459101", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "「专栏」河北区消防救援支队2025年度面向社会招录政府专职消防员的公告", "link": "http://www.tj-huijun.com/news_details.html?newsid=3398475&_t=1752550131", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "「专栏」南开区消防救援支队2025年度面向社会公开招录政府专职消防员的公告", "link": "http://www.tj-huijun.com/news_details.html?newsid=3398421&_t=1752549085", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津地铁综合站务员招聘简章", "link": "http://www.tj-huijun.com/news_details.html?newsid=3664123&_t=1762335013", "category": "招聘"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局河北分局关于面向社会公开招聘警务辅助人员第三批拟聘用人员公示", "link": "http://www.tj-huijun.com/news_details.html?newsid=3664481&_t=1762338025", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局河北分局关于面向社会公开招聘警务辅助人员第二批拟聘用人员公示", "link": "http://www.tj-huijun.com/news_details.html?newsid=3632069&_t=1761112149", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员体检安排通知", "link": "http://www.tj-huijun.com/news_details.html?newsid=3627167&_t=1760928322", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员总成绩公示", "link": "http://www.tj-huijun.com/news_details.html?newsid=3627005&_t=1760925599", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局和平分局关于面向社会公开招聘警务辅助人员第二批拟聘用人员公示", "link": "http://www.tj-huijun.com/news_details.html?newsid=3621823&_t=1760662809", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津公安局静海分局关于面向社会公开招聘警务辅助人员面试环节准考证下载通知", "link": "http://www.tj-huijun.com/news_details.html?newsid=3617133&_t=1760499293", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员面试缴费入口", "link": "http://www.tj-huijun.com/news_details.html?newsid=3614711&_t=1760404163", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员面试安排通知", "link": "http://www.tj-huijun.com/news_details.html?newsid=3610911&_t=1760321957", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员进入面试人员公示", "link": "http://www.tj-huijun.com/news_details.html?newsid=3610825&_t=1760319734", "category": "辅警/消防"}, {"site": "天津荟骏（辅警/消防/地铁）", "siteId": "huijun", "title": "天津市公安局静海分局关于面向社会公开招聘警务辅助人员资格复审与体能测评、心理素质测评...", "link": "http://www.tj-huijun.com/news_details.html?newsid=3601311&_t=1759998087", "category": "辅警/消防"}];
+
+const copyCache = [];
+const catClassMap = {"招聘":"cat-recruit","考试":"cat-exam","辅警/消防":"cat-police","公示":"cat-notice","三支一扶":"cat-sanzhi"};
+let selectedArticle = null;
+
+function filterArticles() {
+  const site = document.getElementById("siteFilter").value;
+  const cat = document.getElementById("catFilter").value;
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  let arts = ARTICLES;
+  if (site !== "all") arts = arts.filter(a => a.siteId === site);
+  if (cat !== "all") arts = arts.filter(a => a.category === cat);
+  if (q) arts = arts.filter(a => a.title.toLowerCase().includes(q) || a.site.toLowerCase().includes(q));
+  
+  const list = document.getElementById("articleList");
+  list.innerHTML = arts.map((a,i) => {
+    const sel = selectedArticle && selectedArticle.link === a.link ? " selected" : "";
+    return `<div class="article-item${sel}" onclick="pickArticle(${ARTICLES.indexOf(a)})">
+      <span class="cat-badge ${catClassMap[a.category]||'cat-recruit'}">${a.category}</span>
+      <div class="art-info"><div class="art-title">${a.title}</div><div class="art-meta">${a.site}</div></div>
+    </div>`;
+  }).join("");
+}
+
+function pickArticle(idx) {
+  selectedArticle = ARTICLES[idx];
+  // Auto-fill into tab2 textarea
+  document.getElementById("article-content").value = selectedArticle.link;
+  document.getElementById("articleHint").style.display = "none";
+  showToast("✅ 已填入链接，切换到「爆款文案」生成吧！");
+  // Also pre-fill cover title
+  document.getElementById("title").value = selectedArticle.title.replace(/\s+/g," ").substring(0,15);
+  filterArticles();
+}
+
+function fillFromArticle() {
+  if (!selectedArticle) { showToast("请先从公告列表选择一条公告"); return; }
+  document.getElementById("title").value = selectedArticle.title.replace(/\s+/g," ").substring(0,15);
+  showToast("已填充封面标题");
+}
+
+// Tab switching
+function switchTab(n) {
+  ["tab0","tab1","tab2"].forEach((id,i) => {
+    document.getElementById(id).classList.toggle("hidden", i !== n);
+    document.getElementById("tab"+i+"-btn").classList.toggle("active", i === n);
+  });
+}
+document.getElementById("tab0-btn").onclick = () => switchTab(0);
+document.getElementById("tab1-btn").onclick = () => switchTab(1);
+document.getElementById("tab2-btn").onclick = () => switchTab(2);
+
+// Cover generation
+document.getElementById("btn-cover").onclick = async function() {
+  const title = document.getElementById("title").value.trim();
+  const subtitle = document.getElementById("subtitle").value.trim();
+  const landmark = document.getElementById("landmark").value.trim() || "现代城市建筑";
+  if (!title) { showToast("请输入主标题"); return; }
+  const btn = this;
+  btn.disabled = true; btn.textContent = "生成中...";
+  try {
+    const res = await fetch("/generate-cover", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({title, subtitle, landmark})
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("cover-result").innerHTML =
+        `<img src="${data.url}" style="max-width:100%;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <div style="margin-top:14px">
+          <a href="${data.url}" download="xiaohongshu-cover.png" style="display:inline-block;padding:11px 22px;background:var(--success);color:#fff;border-radius:12px;text-decoration:none;font-weight:600">📥 下载封面</a>
+        </div>`;
+      document.getElementById("cover-result").classList.remove("hidden");
+      showToast("封面生成成功！");
+    } else { showToast("生成失败: " + data.error); }
+  } catch(e) { showToast("出错了: " + e.message); }
+  btn.disabled = false; btn.textContent = "🚀 生成封面";
+};
+
+// Copy generation
+document.getElementById("btn-copy").onclick = async function() {
+  let content = document.getElementById("article-content").value.trim();
+  if (!content) { showToast("请粘贴文章链接或选择公告"); return; }
+  const btn = this;
+  btn.disabled = true;
+  document.getElementById("copy-loading").classList.remove("hidden");
+  document.getElementById("copy-result").classList.add("hidden");
+  try {
+    if (content.startsWith("http://") || content.startsWith("https://")) {
+      showToast("正在抓取文章内容...");
+      const fetchRes = await fetch("/fetch-content", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:content})});
+      const fetchData = await fetchRes.json();
+      if (fetchData.error) throw new Error(fetchData.error);
+      content = fetchData.content;
+      showToast("抓取成功！正在生成文案...");
+    }
+    const res = await fetch("/generate-copy", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content})});
+    const data = await res.json();
+    if (data.error) { showToast("生成失败: "+data.error); return; }
+    let html = "";
+    const versions = [
+      {key:"version1",name:"🔥 版本1：爆款标题党"},
+      {key:"version2",name:"📚 版本2：干货详细版"},
+      {key:"version3",name:"💖 版本3：情感共鸣版"}
+    ];
+    for (let i=0;i<versions.length;i++) {
+      const v = versions[i];
+      if (data[v.key]) {
+        const fullText = data[v.key].title + "\n\n" + data[v.key].content + "\n\n" + data[v.key].tags.map(t=>"#"+t).join(" ");
+        copyCache[i] = fullText;
+        html += `<div class="result-card"><h3>${v.name}</h3><div class="result-text">${escapeHtml(fullText)}</div><button class="copy-btn" onclick="doCopy(${i})">📋 复制文案</button></div>`;
+      }
+    }
+    document.getElementById("copy-result").innerHTML = html;
+    document.getElementById("copy-result").classList.remove("hidden");
+    showToast("文案生成成功！");
+  } catch(e) { showToast("出错了: "+e.message); }
+  btn.disabled = false;
+  document.getElementById("copy-loading").classList.add("hidden");
+};
+
+function doCopy(idx) {
+  navigator.clipboard.writeText(copyCache[idx]).then(() => showToast("已复制到剪贴板！"));
+}
+
+function showToast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function escapeHtml(text) {
+  const d = document.createElement("div");
+  d.textContent = text; return d.innerHTML;
+}
+
+// Init
+filterArticles();
+</script>
+</body>
+</html>
