@@ -62,6 +62,8 @@ textarea{resize:vertical;min-height:160px;line-height:1.6}
 .article-item .art-info{flex:1;min-width:0}
 .article-item .art-title{font-size:13px;line-height:1.4;color:var(--text)}
 .article-item .art-meta{font-size:10px;color:var(--dim);margin-top:3px}
+.article-item .art-link{flex-shrink:0;padding:4px 8px;border-radius:8px;color:var(--blue);font-size:14px;text-decoration:none;opacity:0.6;transition:all 0.15s}
+.article-item .art-link:hover{opacity:1;background:rgba(41,151,255,0.12)}
 .article-hint{text-align:center;padding:30px 20px;color:var(--dim)}
 .article-hint .icon{font-size:36px;margin-bottom:8px}
 .tag-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
@@ -175,6 +177,7 @@ function filterArticles() {
     return `<div class="article-item${sel}" onclick="pickArticle(${ARTICLES.indexOf(a)})">
       <span class="cat-badge ${catClassMap[a.category]||'cat-recruit'}">${a.category}</span>
       <div class="art-info"><div class="art-title">${titleClean}</div><div class="art-meta">${a.site}${dateStr ? ' · <span style="color:var(--blue)">'+dateStr+'</span>' : ''}</div></div>
+      <a class="art-link" href="${a.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="打开原文">↗</a>
     </div>`;
   }).join("");
 }
