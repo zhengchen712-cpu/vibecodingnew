@@ -156,12 +156,25 @@ function filterArticles() {
   if (cat !== "all") arts = arts.filter(a => a.category === cat);
   if (q) arts = arts.filter(a => a.title.toLowerCase().includes(q) || a.site.toLowerCase().includes(q));
   
+  // 从标题中提取发布日期 (格式: YYYY-MM-DD)，按日期降序排列
+  const dateReg = /(\d{4}-\d{2}-\d{2})/;
+  arts = arts.slice().sort((a, b) => {
+    const ma = (a.title || "").match(dateReg);
+    const mb = (b.title || "").match(dateReg);
+    const da = ma ? ma[1] : "0000-00-00";
+    const db = mb ? mb[1] : "0000-00-00";
+    return db.localeCompare(da);
+  });
+  
   const list = document.getElementById("articleList");
   list.innerHTML = arts.map((a,i) => {
     const sel = selectedArticle && selectedArticle.link === a.link ? " selected" : "";
+    const m = (a.title || "").match(dateReg);
+    const dateStr = m ? m[1] : "";
+    const titleClean = m ? a.title.replace(dateReg, "").replace(/\s+$/, "") : a.title;
     return `<div class="article-item${sel}" onclick="pickArticle(${ARTICLES.indexOf(a)})">
       <span class="cat-badge ${catClassMap[a.category]||'cat-recruit'}">${a.category}</span>
-      <div class="art-info"><div class="art-title">${a.title}</div><div class="art-meta">${a.site}</div></div>
+      <div class="art-info"><div class="art-title">${titleClean}</div><div class="art-meta">${a.site}${dateStr ? ' · <span style="color:var(--blue)">'+dateStr+'</span>' : ''}</div></div>
     </div>`;
   }).join("");
 }

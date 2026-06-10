@@ -44,8 +44,8 @@ def generate_cover_image(title, subtitle, landmark):
     
     # Decorative circles
     for i in range(6):
-        cx = size * (0.15 + i * 0.14)
-        cy = size * (0.25 + i * 0.10)
+        cx = int(size * (0.15 + i * 0.14))
+        cy = int(size * (0.25 + i * 0.10))
         radius = 70 + i * 35
         circle = Image.new("RGBA", (radius*2, radius*2), (0,0,0,0))
         cd = ImageDraw.Draw(circle)
