@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>推送时段编辑器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif}
+body{background:#f8f9fb;color:#1a1a2e;padding:20px 16px 80px}
+h1{font-size:20px;margin-bottom:2px}
+.sub{font-size:12px;color:#6b7280;margin-bottom:14px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.btn{background:#1a1a2e;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+.btn.ghost{background:#fff;color:#374151;border:1px solid #d1d5db}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:active{opacity:.8}
+.legend{display:flex;gap:12px;flex-wrap:wrap;background:#fff;padding:10px 14px;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:14px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#374151}
+.lg{width:12px;height:12px;display:inline-block}
+.lg.circle{border-radius:50%}
+.lg.square{border-radius:2px}
+.lg.triangle{clip-path:polygon(50% 0,100% 100%,0 100%)}
+.lg.diamond{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.lg.star{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.chart{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:auto}
+.ticks{position:relative;height:26px;margin-left:132px;border-bottom:1px solid #e5e7eb}
+.tick{position:absolute;transform:translateX(-50%);font-size:10px;color:#9ca3af;bottom:4px;white-space:nowrap}
+.grid-wrap{position:relative;margin-left:132px}
+.golden{position:absolute;top:0;bottom:0;background:rgba(16,185,129,0.07);border-left:1px dashed rgba(16,185,129,0.35);border-right:1px dashed rgba(16,185,129,0.35)}
+.row{display:flex;height:42px;border-bottom:1px solid #f3f4f6;align-items:center;position:relative}
+.label{width:132px;margin-left:-132px;padding-right:8px;font-size:11px;color:#374151;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;touch-action:none;user-select:none}
+.label:active{cursor:grabbing}
+.track{position:relative;flex:1;height:100%}
+.dot{position:absolute;width:16px;height:16px;top:50%;transform:translate(-50%,-50%);cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.18);touch-action:none;z-index:2}
+.dot:active{cursor:grabbing}
+.dot.circle{border-radius:50%}
+.dot.square{border-radius:3px}
+.dot.triangle{clip-path:polygon(50% 0,100% 100%,0 100%)}
+.dot.diamond{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.dot.star{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.dot.bad{outline:2px solid #ef4444;outline-offset:1px}
+.dot.overlap{outline:2px solid #f59e0b;outline-offset:1px}
+.add-proj{width:132px;margin-left:-132px;padding:4px 8px;font-size:11px;color:#6b7280;background:#f3f4f6;border:1px dashed #d1d5db;border-radius:4px;cursor:pointer;text-align:center}
+.add-dot{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:#f3f4f6;border:1px dashed #cbd5e1;color:#6b7280;font-size:14px;line-height:18px;text-align:center;cursor:pointer;z-index:3}
+.add-dot:hover{background:#e5e7eb}
+.insert-line{position:absolute;left:-132px;right:0;height:3px;background:#1a1a2e;display:none;pointer-events:none;z-index:6;border-radius:2px}
+.insert-line::before{content:'';position:absolute;left:0;top:-4px;border:5px solid transparent;border-left:7px solid #1a1a2e}
+/* 拖动参考线 */
+.guideline{position:absolute;top:0;bottom:0;width:1px;background:#1a1a2e;display:none;pointer-events:none;z-index:5}
+.guideline .tag{position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.tip{position:fixed;background:#1a1a2e;color:#fff;font-size:12px;padding:4px 8px;border-radius:4px;pointer-events:none;z-index:99;display:none;white-space:nowrap}
+.warn{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12px;color:#b91c1c;display:none;line-height:1.7}
+.warn.show{display:block}
+.note{margin-top:12px;font-size:11px;color:#9ca3af;line-height:1.7}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:100}
+.modal.show{display:flex}
+.modal-box{background:#fff;border-radius:10px;padding:18px;width:300px;max-width:90vw}
+.modal-box h3{font-size:15px;margin-bottom:10px}
+.modal-box input,.modal-box select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;margin-bottom:12px}
+.modal-box .row-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-box .row-btns .del{margin-right:auto;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca}
+.version-list{margin-top:6px;max-height:200px;overflow:auto}
+.version-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:6px;font-size:13px}
+.version-item .vbtns{display:flex;gap:6px}
+.mini{font-size:11px;padding:4px 9px}
+</style>
+</head>
+<body>
+<h1>推送时段编辑器</h1>
+<div class="sub">拖动圆点改时间 · 点击圆点精确输入/删除 · 拖动时显示时间参考线 · 支持保存版本和回撤</div>
+
+<div class="bar">
+  <button class="btn ghost" onclick="undo()" id="undoBtn" disabled>↩ 回撤</button>
+  <button class="btn ghost" onclick="redo()" id="redoBtn" disabled>↪ 重做</button>
+  <button class="btn" onclick="saveVersion()">💾 保存版本</button>
+  <button class="btn ghost" onclick="openVersions()">📂 版本列表</button>
+  <button class="btn ghost" onclick="exportData()">导出数据</button>
+  <button class="btn ghost" onclick="exportCSV()">导出CSV</button>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="chart">
+  <div class="ticks" id="ticks"></div>
+  <div class="grid-wrap" id="grid">
+    <div id="goldens"></div>
+    <div class="guideline" id="guideline"><span class="tag" id="guideline-tag"></span></div>
+    <div class="insert-line" id="insert-line"></div>
+    <div class="rows" id="rows"></div>
+  </div>
+</div>
+
+<div class="warn" id="warn"></div>
+<div class="note">
+💡 <b>规则</b>：蓝·活动 8:00-21:00 ｜ 橙·咨询 9:00-21:00 ｜ 红·正课 ｜ 紫·高价课 9:00-21:00 ｜ 绿·优惠券<br>
+· 正课/优惠券须落在绿色黄金时段带内（8:00-9:00 / 12:00-13:30 / 17:30-19:00 / 20:30-22:30）<br>
+· 红框=违反规则 ｜ 黄框=同类撞时间 ｜ 每行右侧「+」添加推送点 ｜ 拖动精度 5 分钟<br>
+· 回撤/重做记录最近操作；保存的版本存浏览器本地（localStorage）
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <input type="time" id="modal-input" step="300">
+    <div class="row-btns">
+      <button class="btn ghost del" id="modal-del" onclick="confirmDelete()">删除</button>
+      <button class="btn ghost" onclick="closeModal()">取消</button>
+      <button class="btn" onclick="confirmEdit()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="addProjModal">
+  <div class="modal-box">
+    <h3>新增考试类型</h3>
+    <input type="text" id="addProjName" placeholder="输入考试名称，如：选调生">
+    <div class="row-btns">
+      <button class="btn ghost" onclick="closeAddProj()">取消</button>
+      <button class="btn" onclick="confirmAddProj()">添加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="addDotModal">
+  <div class="modal-box">
+    <h3 id="addDotTitle"></h3>
+    <select id="addDotType">
+      <option value="活动">活动</option>
+      <option value="咨询">咨询</option>
+      <option value="正课">正课</option>
+      <option value="高价课">高价课</option>
+      <option value="优惠券">优惠券</option>
+    </select>
+    <input type="time" id="addDotTime" step="300">
+    <div class="row-btns">
+      <button class="btn ghost" onclick="closeAddDot()">取消</button>
+      <button class="btn" onclick="confirmAddDot()">添加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="versionsModal">
+  <div class="modal-box">
+    <h3>已保存版本</h3>
+    <div class="version-list" id="versionList"></div>
+    <div class="row-btns">
+      <button class="btn ghost" onclick="closeVersions()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+const COLORS = {活动:'#3b82f6',咨询:'#f59e0b',正课:'#ef4444',高价课:'#8b5cf6',优惠券:'#10b981'};
+const SHAPES = {活动:'circle',咨询:'square',正课:'triangle',高价课:'diamond',优惠券:'star'};
+const START = 480, END = 1350;
+const ORDER = ['活动','咨询','正课','高价课','优惠券'];
+
+let DATA = [
+["省考","活动","21:00"],["省考","咨询","18:13"],["省考","正课","21:28"],["省考","高价课","18:10"],["省考","优惠券","20:58"],["省考","活动","15:36"],["省考","正课","12:30"],["省考","高价课","15:31"],["省考","活动","20:00"],["省考","高价课","12:55"],
+["事业单位联考","咨询","14:30"],["事业单位联考","正课","08:30"],["事业单位联考","高价课","14:33"],["事业单位联考","优惠券","20:32"],["事业单位联考","正课","18:00"],["事业单位联考","高价课","11:48"],["事业单位联考","高价课","10:37"],
+["事业单位非联考","咨询","19:46"],["事业单位非联考","正课","08:10"],["事业单位非联考","优惠券","21:00"],
+["国考","咨询","10:10"],["国考","正课","22:15"],["国考","高价课","12:40"],["国考","优惠券","18:00"],["国考","正课","12:30"],["国考","高价课","09:59"],
+["社区","活动","09:19"],["社区","咨询","14:59"],["社区","正课","21:00"],["社区","正课","08:00"],
+["医疗","活动","09:16"],["医疗","咨询","16:40"],["医疗","正课","21:00"],["医疗","正课","08:50"],["医疗","正课","12:30"],
+["银行","咨询","19:25"],["银行","正课","18:49"],["银行","正课","12:30"],
+["d类","正课","18:00"],
+["河北事业单位联考","活动","10:56"],["河北事业单位联考","咨询","10:40"],["河北事业单位联考","正课","22:30"],
+["黑龙江事业单位联考","活动","10:49"],["黑龙江事业单位联考","咨询","09:50"],["黑龙江事业单位联考","正课","18:00"],
+["军队文职","活动","20:56"],["军队文职","高价课","14:52"],
+["教资","活动","19:10"],["教资","咨询","11:51"],["教资","正课","12:30"],
+["辅警","活动","18:21"],["辅警","咨询","18:21"],
+["教师招聘","活动","18:02"],["教师招聘","活动","15:20"],
+["三支","活动","10:00"],["三支","咨询","10:30"],
+["海南事业单位","活动","11:57"],["海南事业单位","咨询","20:46"],["海南事业单位","正课","18:00"],
+["辽宁事业单位","活动","17:02"],["辽宁事业单位","咨询","20:15"],["辽宁事业单位","正课","12:30"],
+["安徽事业单位","活动","16:02"],["安徽事业单位","咨询","14:10"],["安徽事业单位","正课","12:30"],
+["中国联通","咨询","20:08"],["中国联通","咨询","17:08"],
+];
+
+const undoStack = [], redoStack = [];
+let projOrder = [...new Set(DATA.map(d=>d[0]))];
+
+function toMin(t){const p=t.split(':');return +p[0]*60+(+p[1]);}
+function toHM(m){m=Math.round(m);const h=Math.floor(m/60),mm=m%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
+function xOf(m){return (m-START)/(END-START)*100;}
+function snap(m){return Math.max(START,Math.min(END,Math.round(m/5)*5));}
+
+function goldenOk(m){return (m>=480&&m<=540)||(m>=720&&m<=810)||(m>=1050&&m<=1140)||(m>=1230&&m<=1350);}
+function check(proj,type,t){
+  const m=toMin(t);
+  if(type==='活动'&&!(m>=480&&m<=1260))return '活动需在8:00-21:00';
+  if((type==='咨询'||type==='高价课')&&!(m>=540&&m<=1260))return type+'需在9:00-21:00';
+  if((type==='正课'||type==='优惠券')&&!goldenOk(m))return type+'应在黄金时段';
+  const same=DATA.filter(d=>d[0]===proj&&d[1]===type&&toMin(d[2])===m);
+  if(same.length>1)return '与同类内容撞时间';
+  return '';
+}
+
+/* ---------- 历史 ---------- */
+function snapshot(){return JSON.stringify(DATA);}
+function restore(s){DATA=JSON.parse(s);renderAll();}
+function pushHistory(){undoStack.push(snapshot());if(undoStack.length>50)undoStack.shift();redoStack.length=0;updateHBtns();}
+function undo(){if(!undoStack.length)return;redoStack.push(snapshot());const s=undoStack.pop();restore(s);updateHBtns();}
+function redo(){if(!redoStack.length)return;undoStack.push(snapshot());const s=redoStack.pop();restore(s);updateHBtns();}
+function updateHBtns(){document.getElementById('undoBtn').disabled=!undoStack.length;document.getElementById('redoBtn').disabled=!redoStack.length;}
+
+/* ---------- 渲染 ---------- */
+function renderAll(){renderLegend();renderTicks();renderGoldens();renderRows();}
+function renderLegend(){
+  const cnt={};ORDER.forEach(o=>cnt[o]=DATA.filter(d=>d[1]===o).length);
+  document.getElementById('legend').innerHTML=ORDER.map(o=>
+    `<div class="legend-item"><span class="lg ${SHAPES[o]}" style="background:${COLORS[o]}"></span>${o}（${cnt[o]}）</div>`
+  ).join('');
+}
+function renderTicks(){
+  let html='';
+  for(let h=8;h<=22;h++)html+=`<div class="tick" style="left:${xOf(h*60).toFixed(2)}%">${h}:00</div>`;
+  document.getElementById('ticks').innerHTML=html;
+}
+function renderGoldens(){
+  const ranges=[[480,540],[720,810],[1050,1140],[1230,1350]];
+  document.getElementById('goldens').innerHTML=ranges.map(([a,b])=>
+    `<div class="golden" style="left:${xOf(a).toFixed(2)}%;width:${(xOf(b)-xOf(a)).toFixed(2)}%"></div>`
+  ).join('');
+}
+function renderRows(){
+  DATA.forEach(d=>{if(!projOrder.includes(d[0]))projOrder.push(d[0]);});
+  const projs=projOrder.filter(p=>DATA.some(d=>d[0]===p));
+  const wrap=document.getElementById('rows');
+  wrap.innerHTML=projs.map(p=>{
+    const items=DATA.filter(d=>d[0]===p).sort((a,b)=>toMin(a[2])-toMin(b[2]));
+    const dots=items.map(d=>{
+      const idx=DATA.indexOf(d);
+      return `<div class="dot ${SHAPES[d[1]]}" data-idx="${idx}" style="left:${xOf(toMin(d[2])).toFixed(2)}%;background:${COLORS[d[1]]}" title="${d[0]} ${d[1]} ${d[2]}"></div>`;
+    }).join('');
+    const add=`<div class="add-dot" data-proj="${p}" title="添加推送点">+</div>`;
+    return `<div class="row"><div class="label" data-proj="${p}" title="拖动整行整体平移">${p}</div><div class="track" data-proj="${p}">${dots}${add}</div></div>`;
+  }).join('');
+  // 底部添加考试
+  wrap.innerHTML+=`<div class="row" style="height:38px"><div class="add-proj" onclick="openAddProj()">＋ 添加考试类型</div><div class="track"></div></div>`;
+  bindDots();bindAddDots();bindLabels();bindTracks();updateBadges();
+}
+
+/* ---------- 拖动 ---------- */
+const guideline=document.getElementById('guideline');
+const gtag=document.getElementById('guideline-tag');
+const tip=document.getElementById('tip');
+function showTip(x,y,text){tip.textContent=text;tip.style.display='block';tip.style.left=(x+12)+'px';tip.style.top=(y-30)+'px';}
+function hideTip(){tip.style.display='none';}
+function showGuide(x){
+  const grid=document.getElementById('grid').getBoundingClientRect();
+  const px=x-grid.left;
+  const ratio=Math.max(0,Math.min(1,px/grid.width));
+  const m=snap(START+ratio*(END-START));
+  guideline.style.display='block';
+  guideline.style.left=(m-START)/(END-START)*100+'%';
+  gtag.textContent=toHM(m);
+}
+function hideGuide(){guideline.style.display='none';}
+
+function bindDots(){
+  document.querySelectorAll('.dot').forEach(dot=>{
+    let dragging=false,moved=false,idx=+dot.dataset.idx;
+    dot.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      dragging=true;moved=false;
+      idx=+dot.dataset.idx;
+      pushHistory();
+      dot.setPointerCapture(e.pointerId);
+      showGuide(e.clientX);
+    });
+    dot.addEventListener('pointermove',e=>{
+      if(!dragging)return;
+      moved=true;
+      const track=dot.parentElement.getBoundingClientRect();
+      const x=e.clientX-track.left;
+      const ratio=Math.max(0,Math.min(1,x/track.width));
+      const m=snap(START+ratio*(END-START));
+      DATA[idx][2]=toHM(m);
+      dot.style.left=xOf(m).toFixed(2)+'%';
+      dot.title=`${DATA[idx][0]} ${DATA[idx][1]} ${DATA[idx][2]}`;
+      showGuide(e.clientX);
+      showTip(e.clientX,e.clientY,`${DATA[idx][0]} · ${DATA[idx][1]} · ${toHM(m)}`);
+      updateBadges();
+    });
+    dot.addEventListener('pointerup',e=>{
+      if(!dragging)return;
+      dragging=false;hideTip();hideGuide();
+      if(!moved){undoStack.pop();updateHBtns();openModal(idx);}
+      else{renderRows();}
+    });
+  });
+}
+function bindAddDots(){
+  document.querySelectorAll('.add-dot').forEach(a=>{
+    a.addEventListener('click',()=>openAddDot(a.dataset.proj));
+  });
+}
+
+/* 考试行上下拖动排序 */
+function getProjRows(){
+  return [...document.querySelectorAll('#rows .label[data-proj]')].map(l=>l.parentElement);
+}
+function reorderProj(proj,targetIdx){
+  const cur=projOrder.indexOf(proj);
+  if(cur<0||cur===targetIdx)return;
+  projOrder.splice(cur,1);
+  projOrder.splice(targetIdx,0,proj);
+}
+function bindLabels(){
+  let lastTargetIdx=null;
+  document.querySelectorAll('.label[data-proj]').forEach(label=>{
+    const proj=label.dataset.proj;
+    let dragging=false,moved=false,startY=0;
+    label.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      dragging=true;moved=false;
+      startY=e.clientY;
+      lastTargetIdx=projOrder.indexOf(proj);
+      pushHistory();
+      label.setPointerCapture(e.pointerId);
+      label.style.background='#e0e7ff';
+      showTip(e.clientX,e.clientY,`${proj} · 上下拖动排序`);
+    });
+    label.addEventListener('pointermove',e=>{
+      if(!dragging)return;
+      const dy=e.clientY-startY;
+      if(Math.abs(dy)>3)moved=true;
+      const rowEls=getProjRows();
+      const currentRow=label.parentElement;
+      const grid=document.getElementById('grid').getBoundingClientRect();
+      let targetIdx=lastTargetIdx;
+      let insertTop=null;
+      if(rowEls.length){
+        const firstRect=rowEls[0].getBoundingClientRect();
+        const lastRect=rowEls[rowEls.length-1].getBoundingClientRect();
+        if(e.clientY<firstRect.top){targetIdx=0;insertTop=firstRect.top;}
+        else if(e.clientY>lastRect.bottom){targetIdx=rowEls.length;insertTop=lastRect.bottom;}
+        else{
+          for(let i=0;i<rowEls.length;i++){
+            const r=rowEls[i];
+            if(r===currentRow)continue;
+            const rect=r.getBoundingClientRect();
+            if(e.clientY>=rect.top&&e.clientY<=rect.bottom){
+              const mid=rect.top+rect.height/2;
+              if(e.clientY<mid){targetIdx=i;insertTop=rect.top;}
+              else{targetIdx=i+1;insertTop=rect.bottom;}
+              break;
+            }
+          }
+        }
+      }
+      lastTargetIdx=targetIdx;
+      const il=document.getElementById('insert-line');
+      if(insertTop!=null){
+        il.style.display='block';
+        il.style.top=(insertTop-grid.top)+'px';
+      }else{il.style.display='none';}
+    });
+    label.addEventListener('pointerup',e=>{
+      if(!dragging)return;
+      dragging=false;
+      label.style.background='';
+      hideTip();
+      document.getElementById('insert-line').style.display='none';
+      if(moved&&lastTargetIdx!=null){
+        reorderProj(proj,lastTargetIdx);
+        renderRows();
+      }else{
+        undoStack.pop();updateHBtns();
+      }
+    });
+  });
+}
+
+/* 空白处点击：在该时间点新增推送 */
+function bindTracks(){
+  document.querySelectorAll('.track[data-proj]').forEach(track=>{
+    const proj=track.dataset.proj;
+    track.addEventListener('click',e=>{
+      if(e.target.classList.contains('dot')||e.target.classList.contains('add-dot'))return;
+      const rect=track.getBoundingClientRect();
+      const x=e.clientX-rect.left;
+      const ratio=Math.max(0,Math.min(1,x/rect.width));
+      const m=snap(START+ratio*(END-START));
+      openAddDot(proj,toHM(m));
+    });
+  });
+}
+
+/* ---------- 弹窗 ---------- */
+let editIdx=null;
+function openModal(idx){editIdx=idx;const d=DATA[idx];
+  document.getElementById('modal-title').textContent=`${d[0]} · ${d[1]}`;
+  document.getElementById('modal-input').value=d[2];
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){document.getElementById('modal').classList.remove('show');editIdx=null;}
+function confirmEdit(){
+  const v=document.getElementById('modal-input').value;
+  if(v){pushHistory();DATA[editIdx][2]=v;renderRows();renderLegend();}
+  closeModal();
+}
+function confirmDelete(){
+  pushHistory();
+  DATA.splice(editIdx,1);
+  renderRows();renderLegend();
+  closeModal();
+}
+
+/* 添加考试 */
+function openAddProj(){document.getElementById('addProjName').value='';document.getElementById('addProjModal').classList.add('show');}
+function closeAddProj(){document.getElementById('addProjModal').classList.remove('show');}
+function confirmAddProj(){
+  const name=document.getElementById('addProjName').value.trim();
+  if(!name){alert('请输入考试名称');return;}
+  if(DATA.some(d=>d[0]===name)){alert('该考试已存在');return;}
+  pushHistory();
+  DATA.push([name,'咨询','09:00']);
+  projOrder.push(name);
+  renderRows();renderLegend();
+  closeAddProj();
+}
+
+/* 添加推送点 */
+let addDotProj=null;
+function openAddDot(proj,time){addDotProj=proj;document.getElementById('addDotTitle').textContent=`为「${proj}」添加推送点`;
+  document.getElementById('addDotTime').value=time||'09:00';
+  document.getElementById('addDotModal').classList.add('show');
+}
+function closeAddDot(){document.getElementById('addDotModal').classList.remove('show');addDotProj=null;}
+function confirmAddDot(){
+  const type=document.getElementById('addDotType').value;
+  const t=document.getElementById('addDotTime').value;
+  if(!t)return;
+  pushHistory();
+  DATA.push([addDotProj,type,t]);
+  renderRows();renderLegend();
+  closeAddDot();
+}
+
+/* ---------- 版本 ---------- */
+const VKEY='schedule_versions';
+function getVersions(){try{return JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){return[];}}
+function saveVersion(){
+  const name=prompt('给这个版本起个名字：', '版本 '+new Date().toLocaleString('zh-CN'));
+  if(name===null)return;
+  const v=getVersions();
+  v.unshift({name:name||('版本'+new Date().toLocaleString()),ts:Date.now(),data:snapshot()});
+  localStorage.setItem(VKEY,JSON.stringify(v));
+  alert('已保存：'+name);
+}
+function openVersions(){
+  const v=getVersions();
+  const box=document.getElementById('versionList');
+  if(!v.length){box.innerHTML='<div style="color:#9ca3af;font-size:13px;padding:10px">暂无保存的版本</div>';}
+  else{
+    box.innerHTML=v.map((item,i)=>{
+      const d=new Date(item.ts);
+      const ts=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      return `<div class="version-item"><span>${item.name}<br><small style="color:#9ca3af">${ts} · ${JSON.parse(item.data).length}条</small></span>
+      <span class="vbtns"><button class="btn ghost mini" onclick="loadVersion(${i})">载入</button><button class="btn ghost mini" onclick="delVersion(${i})">删</button></span></div>`;
+    }).join('');
+  }
+  document.getElementById('versionsModal').classList.add('show');
+}
+function closeVersions(){document.getElementById('versionsModal').classList.remove('show');}
+function loadVersion(i){
+  const v=getVersions();
+  if(!confirm('载入「'+v[i].name+'」？当前未保存的改动会被覆盖'))return;
+  pushHistory();
+  restore(v[i].data);
+  closeVersions();
+}
+function delVersion(i){
+  const v=getVersions();
+  v.splice(i,1);localStorage.setItem(VKEY,JSON.stringify(v));
+  openVersions();
+}
+
+/* ---------- 校验 ---------- */
+function updateBadges(){
+  const warnings=[];
+  document.querySelectorAll('.dot').forEach(dot=>{
+    const idx=+dot.dataset.idx,d=DATA[idx];
+    const err=check(d[0],d[1],d[2]);
+    dot.classList.remove('bad','overlap');
+    if(err){
+      if(err.includes('撞时间'))dot.classList.add('overlap');
+      else dot.classList.add('bad');
+      if(!warnings.some(w=>w.includes(d[0]+' '+d[1])))warnings.push(`${d[0]} · ${d[1]} ${d[2]}：${err}`);
+    }
+  });
+  const w=document.getElementById('warn');
+  if(warnings.length){w.innerHTML='⚠️ 发现问题：<br>'+warnings.join('<br>');w.classList.add('show');}
+  else{w.classList.remove('show');}
+}
+
+/* ---------- 导出 ---------- */
+function copyText(text){
+  const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');alert('已复制 '+DATA.length+' 条，可直接粘贴');}catch(e){alert(text);}
+  document.body.removeChild(ta);
+}
+function exportData(){
+  const lines=DATA.map(d=>`${d[0]} · ${d[1]} · ${d[2]}`).join('\n');
+  copyText(lines);
+}
+function exportCSV(){
+  const lines=DATA.map(d=>d.join(',')).join('\n');
+  copyText(lines);
+}
+
+/* 快捷键 */
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(e.shiftKey)redo();else undo();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();redo();}
+});
+
+renderAll();
+</script>
+</body>
+</html>
