@@ -493,8 +493,11 @@ function confirmAddDot(){
 
 /* ---------- 版本 ---------- */
 const VKEY='schedule_versions';
+const SKEY='schedule_current';
 function lsOK(){try{const k='__test__'+Date.now();localStorage.setItem(k,'1');localStorage.removeItem(k);return true;}catch(e){return false;}}
 function getVersions(){try{return JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){return[];}}
+function saveCurrent(){try{localStorage.setItem(SKEY,snapshot());}catch(e){}}
+function loadCurrent(){try{return localStorage.getItem(SKEY);}catch(e){return null;}}
 function saveVersion(){
   if(!lsOK()){
     if(!confirm('⚠️ 你的浏览器 localStorage 不可用（可能开了隐身模式 / file:// 协议），保存的版本刷新会丢。\n\n继续保存：版本仅存在本会话。\n取消：请换常规浏览器以在本站点以 HTTPS 打开。'))return;
@@ -505,10 +508,10 @@ function saveVersion(){
   v.unshift({name:name||('版本'+new Date().toLocaleString()),ts:Date.now(),data:snapshot()});
   try{
     localStorage.setItem(VKEY,JSON.stringify(v));
-    downloadBackup(v);
-    alert('已保存：'+name+'\n（同时下载了 JSON 备份到本地，保险）');
+    saveCurrent();
+    alert('已保存：'+name+'\n刷新后会自动恢复到这个状态。');
   }catch(e){
-    alert('localStorage 写入失败：'+e.message+'\n请下载备份到本地：');
+    alert('localStorage 写入失败：'+e.message+'\n（为你下载 JSON 备份，请保存好）');
     downloadBackup(v);
   }
 }
@@ -573,6 +576,7 @@ function loadVersion(i){
   if(!confirm('载入「'+v[i].name+'」？当前未保存的改动会被覆盖'))return;
   pushHistory();
   restore(v[i].data);
+  saveCurrent();
   closeVersions();
 }
 function delVersion(i){
@@ -620,6 +624,16 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();redo();}
 });
 
+/* 启动时自动恢复最近保存的当前状态 */
+(function(){
+  const saved=loadCurrent();
+  if(saved){
+    try{
+      const d=JSON.parse(saved);
+      if(Array.isArray(d)&&d.length){DATA=d;}
+    }catch(e){}
+  }
+})();
 renderAll();
 </script>
 </body>
