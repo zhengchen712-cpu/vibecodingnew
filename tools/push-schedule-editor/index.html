@@ -493,21 +493,47 @@ function confirmAddDot(){
 
 /* ---------- 版本 ---------- */
 const VKEY='schedule_versions';
+function lsOK(){try{const k='__test__'+Date.now();localStorage.setItem(k,'1');localStorage.removeItem(k);return true;}catch(e){return false;}}
 function getVersions(){try{return JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){return[];}}
 function saveVersion(){
+  if(!lsOK()){
+    if(!confirm('⚠️ 你的浏览器 localStorage 不可用（可能开了隐身模式 / file:// 协议），保存的版本刷新会丢。\n\n继续保存：版本仅存在本会话。\n取消：请换常规浏览器以在本站点以 HTTPS 打开。'))return;
+  }
   const name=prompt('给这个版本起个名字：', '版本 '+new Date().toLocaleString('zh-CN'));
   if(name===null)return;
   const v=getVersions();
   v.unshift({name:name||('版本'+new Date().toLocaleString()),ts:Date.now(),data:snapshot()});
-  localStorage.setItem(VKEY,JSON.stringify(v));
-  alert('已保存：'+name);
+  try{
+    localStorage.setItem(VKEY,JSON.stringify(v));
+    downloadBackup(v);
+    alert('已保存：'+name+'\n（同时下载了 JSON 备份到本地，保险）');
+  }catch(e){
+    alert('localStorage 写入失败：'+e.message+'\n请下载备份到本地：');
+    downloadBackup(v);
+  }
+}
+function downloadBackup(versions){
+  try{
+    const data=JSON.stringify({app:'push-schedule-editor',ts:Date.now(),versions},null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='push-schedule-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){console.error('备份下载失败',e);}
 }
 function openVersions(){
   const v=getVersions();
   const box=document.getElementById('versionList');
-  if(!v.length){box.innerHTML='<div style="color:#9ca3af;font-size:13px;padding:10px">暂无保存的版本</div>';}
-  else{
-    box.innerHTML=v.map((item,i)=>{
+  const ok=lsOK();
+  let warn='';
+  if(!ok)warn='<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#92400e">⚠️ localStorage 不可用，保存的版本仅在当前页面有效。推荐：备份到本地 JSON 文件后从备份恢复。</div>';
+  let importBtn='<button class="btn ghost mini" onclick="importBackup()">从备份文件恢复</button>';
+  if(!v.length){
+    box.innerHTML=warn+'<div style="color:#9ca3af;font-size:13px;padding:10px">暂无保存的版本</div>'+'<div style="padding:10px 0 0">'+importBtn+'</div>';
+  }else{
+    box.innerHTML=warn+importBtn+v.map((item,i)=>{
       const d=new Date(item.ts);
       const ts=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       return `<div class="version-item"><span>${item.name}<br><small style="color:#9ca3af">${ts} · ${JSON.parse(item.data).length}条</small></span>
@@ -515,6 +541,31 @@ function openVersions(){
     }).join('');
   }
   document.getElementById('versionsModal').classList.add('show');
+}
+function importBackup(){
+  const input=document.createElement('input');
+  input.type='file';input.accept='.json,application/json';
+  input.onchange=e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const obj=JSON.parse(ev.target.result);
+        if(!obj.versions)throw new Error('不是有效备份文件');
+        if(!confirm('从备份恢复 '+obj.versions.length+' 个版本？\n当前未保存的改动会被覆盖。'))return;
+        const cur=getVersions();
+        const merged=cur.concat(obj.versions).sort((a,b)=>b.ts-a.ts);
+        try{localStorage.setItem(VKEY,JSON.stringify(merged));}catch(err){console.warn(err);}
+        openVersions();
+        alert('已恢复 '+obj.versions.length+' 个版本');
+      }catch(err){
+        alert('导入失败：'+err.message);
+      }
+    };
+    r.readAsText(file);
+  };
+  input.click();
 }
 function closeVersions(){document.getElementById('versionsModal').classList.remove('show');}
 function loadVersion(i){
