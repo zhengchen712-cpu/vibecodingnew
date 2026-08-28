@@ -1,9 +1,0 @@
-services:
-  - type: static
-    name: push-schedule-editor
-    rootDir: tools/push-schedule-editor
-    staticPublishPath: .
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
