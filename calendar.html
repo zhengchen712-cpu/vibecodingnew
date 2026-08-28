@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>考公考编推送日历</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif}
+body{background:#f8f9fb;color:#1a1a2e;padding:20px 16px 60px}
+h1{font-size:20px;margin-bottom:2px}
+.sub{font-size:12px;color:#6b7280;margin-bottom:14px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.nav{display:flex;align-items:center;gap:6px}
+.nb{background:#fff;border:1px solid #d1d5db;border-radius:6px;width:34px;height:34px;font-size:16px;cursor:pointer;color:#374151}
+.nb:active{background:#e5e7eb}
+.ym{font-size:16px;font-weight:600;min-width:110px;text-align:center}
+.btn{background:#1a1a2e;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+.btn.ghost{background:#fff;color:#374151;border:1px solid #d1d5db}
+.btn:active{opacity:.85}
+.link{font-size:12px;color:#2563eb;text-decoration:none;margin-left:auto}
+.cloud{font-size:11px;color:#9ca3af}
+.cal{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);background:#f3f4f6;border-bottom:1px solid #e5e7eb}
+.dow div{padding:8px 0;text-align:center;font-size:12px;color:#6b7280;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cell{min-height:96px;border-right:1px solid #f3f4f6;border-bottom:1px solid #f3f4f6;padding:6px;cursor:pointer;position:relative}
+.cell:nth-child(7n){border-right:none}
+.cell:hover{background:#f8fafc}
+.cell.out{background:#fafafa;color:#c7cdd6}
+.cell.out:hover{background:#f1f5f9}
+.dnum{font-size:13px;font-weight:600;margin-bottom:4px}
+.cell.today .dnum{color:#dc2626}
+.cell.today::after{content:'';position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:#dc2626}
+.tags{display:flex;flex-direction:column;gap:3px}
+.tag{font-size:10px;padding:2px 5px;border-radius:3px;line-height:1.3;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plans{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+.plan{font-size:10px;color:#374151;display:flex;align-items:center;gap:3px;overflow:hidden;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.more{font-size:10px;color:#9ca3af;margin-top:2px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;background:#fff;padding:10px 14px;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:14px;font-size:11px;color:#374151}
+.lg{display:flex;align-items:center;gap:4px}
+.lgd{width:9px;height:9px;border-radius:50%;display:inline-block}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:100;padding:12px}
+.modal.show{display:flex}
+.box{background:#fff;border-radius:10px;padding:18px;width:360px;max-width:94vw;max-height:88vh;overflow:auto}
+.box h3{font-size:16px;margin-bottom:4px}
+.box .date{font-size:12px;color:#6b7280;margin-bottom:12px}
+.sec{margin-bottom:14px}
+.sec h4{font-size:12px;color:#6b7280;margin-bottom:6px;font-weight:600}
+.nitem{font-size:12px;padding:6px 8px;background:#f3f4f6;border-radius:5px;margin-bottom:4px;color:#fff;display:inline-block;margin-right:4px}
+.pitem{display:flex;align-items:center;gap:6px;font-size:13px;padding:7px 8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:5px}
+.pitem .pname{flex:1}
+.pitem .del{color:#b91c1c;cursor:pointer;font-size:16px;padding:0 4px}
+.form{display:flex;flex-direction:column;gap:8px}
+.form select,.form input{padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px}
+.rowbtn{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.nrow{display:flex;gap:6px;align-items:center;font-size:12px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:5px}
+.nrow .nd{color:#9ca3af;flex-shrink:0;font-variant-numeric:tabular-nums}
+.nrow .nn{flex:1}
+.nrow .del{color:#b91c1c;cursor:pointer}
+.note{margin-top:14px;font-size:11px;color:#9ca3af;line-height:1.7}
+@media (max-width:640px){
+  .cell{min-height:72px;padding:4px}
+  .dnum{font-size:12px}
+  .tag{font-size:9px}
+  .plan{font-size:9px}
+  .ym{font-size:14px;min-width:88px}
+}
+</style>
+</head>
+<body>
+<h1>考公考编推送日历</h1>
+<div class="sub">节点参考往年规律，可在节点库按实际公告修正 · 点日期插入推送计划 · 数据云端共享</div>
+
+<div class="bar">
+  <div class="nav">
+    <button class="nb" onclick="shiftMonth(-1)">‹</button>
+    <span class="ym" id="ym"></span>
+    <button class="nb" onclick="shiftMonth(1)">›</button>
+  </div>
+  <button class="btn ghost" onclick="goToday()">今天</button>
+  <button class="btn ghost" onclick="openNodes()">📅 节点库</button>
+  <a class="link" href="/">推送时段编辑器 ↗</a>
+  <span class="cloud" id="cloudStatus">☁ 连接中…</span>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="cal">
+  <div class="dow"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="note">
+💡 用法：日历上的彩色标签 = 考公考编关键节点（公告/报名/笔试/面试）。点任意日期 → 查看当天节点 → 插入推送计划（选考试+内容类型）。保存后云端共享，同事打开链接即可见。<br>
+· 节点是参考时间，每年浮动，实际公告出来后到「节点库」修正日期即可，计划不受影响。
+</div>
+
+<!-- 日详情/添加计划 -->
+<div class="modal" id="dayModal">
+  <div class="box">
+    <h3 id="dm-title"></h3>
+    <div class="date" id="dm-date"></div>
+    <div class="sec" id="dm-nodes-sec"><h4>📌 当天节点</h4><div id="dm-nodes"></div></div>
+    <div class="sec"><h4>📋 推送计划</h4><div id="dm-plans"></div></div>
+    <div class="sec"><h4>➕ 添加推送计划</h4>
+      <div class="form">
+        <select id="fm-proj"></select>
+        <select id="fm-type">
+          <option>活动</option><option>咨询</option><option>正课</option><option>高价课</option><option>优惠券</option>
+        </select>
+        <input type="text" id="fm-note" placeholder="备注（可选），如：国考冲刺预热">
+        <div class="rowbtn">
+          <button class="btn ghost" onclick="closeDay()">取消</button>
+          <button class="btn" onclick="addEvent()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 节点库 -->
+<div class="modal" id="nodesModal">
+  <div class="box">
+    <h3>📅 节点库管理</h3>
+    <div class="date">按实际公告修正日期 / 添加自定义节点（含营销节点）</div>
+    <div class="sec"><div id="nm-list"></div></div>
+    <div class="sec"><h4>➕ 添加节点</h4>
+      <div class="form">
+        <input type="date" id="nm-date">
+        <input type="text" id="nm-name" placeholder="节点名称，如：国考公告发布">
+        <input type="text" id="nm-cat" placeholder="类别，如：国考 / 省考 / 教资 / 营销">
+        <div class="rowbtn">
+          <button class="btn ghost" onclick="closeNodes()">关闭</button>
+          <button class="btn" onclick="addNode()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 配置 ---------- */
+const SB_URL='https://rupjlztoyrzvvpyvbund.supabase.co';
+const SB_KEY='sb_publishable_jZm-UIiUdAV1QotQmegQ_g_psEwm93S';
+const SB_TABLE='push_kv';
+const PROJS=['省考','事业单位联考','事业单位非联考','国考','社区','医疗','银行','d类','河北事业单位联考','黑龙江事业单位联考','军队文职','教资','辅警','教师招聘','三支','海南事业单位','辽宁事业单位','安徽事业单位','中国联通'];
+const TYPE_COLORS={活动:'#3b82f6',咨询:'#f59e0b',正课:'#ef4444',高价课:'#8b5cf6',优惠券:'#10b981'};
+const CAT_COLORS={国考:'#dc2626',省考:'#ea580c',事业编:'#7c3aed',教资:'#db2777',教招:'#0891b2',军队文职:'#4d7c0f',三支:'#65a30d',营销:'#0f766e'};
+function catColor(c){return CAT_COLORS[c]||'#475569';}
+
+/* ---------- 默认节点（参考往年规律，可在节点库修正） ---------- */
+let NODES=[
+{id:'n1',date:'2026-09-12',name:'教资笔试(下半年)',cat:'教资'},
+{id:'n2',date:'2026-10-14',name:'2027国考公告发布',cat:'国考'},
+{id:'n3',date:'2026-10-15',name:'国考报名开始',cat:'国考'},
+{id:'n4',date:'2026-10-24',name:'国考报名截止',cat:'国考'},
+{id:'n5',date:'2026-10-31',name:'事业单位下半年联考笔试',cat:'事业编'},
+{id:'n6',date:'2026-11-29',name:'2027国考笔试',cat:'国考'},
+{id:'n7',date:'2026-12-05',name:'教资面试(下半年)',cat:'教资'},
+{id:'n8',date:'2027-01-10',name:'国考成绩发布',cat:'国考'},
+{id:'n9',date:'2027-02-10',name:'军队文职招考公告',cat:'军队文职'},
+{id:'n10',date:'2027-02-20',name:'多省省考公告陆续发布',cat:'省考'},
+{id:'n11',date:'2027-02-25',name:'省考联考报名',cat:'省考'},
+{id:'n12',date:'2027-03-01',name:'教师招聘公告高峰开始',cat:'教招'},
+{id:'n13',date:'2027-03-13',name:'教资笔试(上半年)',cat:'教资'},
+{id:'n14',date:'2027-03-15',name:'军队文职笔试',cat:'军队文职'},
+{id:'n15',date:'2027-03-27',name:'省考联考笔试',cat:'省考'},
+{id:'n16',date:'2027-04-15',name:'省考成绩陆续发布',cat:'省考'},
+{id:'n17',date:'2027-04-20',name:'事业单位上半年联考报名',cat:'事业编'},
+{id:'n18',date:'2027-05-16',name:'教资面试(上半年)',cat:'教资'},
+{id:'n19',date:'2027-05-22',name:'事业单位联考笔试',cat:'事业编'},
+{id:'n20',date:'2027-05-30',name:'三支一扶招募公告',cat:'三支'},
+];
+let EVENTS=[];
+
+/* ---------- 工具 ---------- */
+function ds(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+function todayStr(){const t=new Date();return ds(t.getFullYear(),t.getMonth(),t.getDate());}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+
+/* ---------- 云端 ---------- */
+let CLOUD=null;
+function sbH(){return {'apikey':SB_KEY,'Authorization':'***'+SB_KEY,'Content-Type':'application/json'};}
+async function sbGet(key){
+  const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=***'+encodeURIComponent(key)+'&select=value',{headers:sbH()});
+  if(!r.ok)throw new Error('GET '+r.status);
+  const rows=await r.json();
+  return rows.length?rows[0].value:null;
+}
+async function sbSet(key,val){
+  const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?on_conflict=key',{method:'POST',headers:{...sbH(),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify({key,value:val})});
+  if(!r.ok&&r.status!==201)throw new Error('SET '+r.status);
+}
+function setCloud(txt){const s=document.getElementById('cloudStatus');if(s)s.textContent=txt;}
+async function saveEvents(){
+  try{await sbSet('calendar_events',EVENTS);localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=true;setCloud('☁ 已连接');}
+  catch(e){localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=false;setCloud('⚠ 仅本地');}
+}
+async function saveNodes(){
+  try{await sbSet('calendar_nodes',NODES);localStorage.setItem('cal_nodes',JSON.stringify(NODES));CLOUD=true;setCloud('☁ 已连接');}
+  catch(e){localStorage.setItem('cal_nodes',JSON.stringify(NODES));CLOUD=false;setCloud('⚠ 仅本地');}
+}
+
+/* ---------- 渲染 ---------- */
+let curY,curM;
+function init(){const t=new Date();curY=t.getFullYear();curM=t.getMonth();render();}
+function shiftMonth(d){curM+=d;if(curM<0){curM=11;curY--;}if(curM>11){curM=0;curY++;}render();}
+function goToday(){const t=new Date();curY=t.getFullYear();curM=t.getMonth();render();}
+
+function render(){
+  document.getElementById('ym').textContent=curY+'年 '+(curM+1)+'月';
+  const grid=document.getElementById('grid');
+  let html='';
+  const first=new Date(curY,curM,1);
+  const startDow=(first.getDay()+6)%7;
+  const dim=new Date(curY,curM+1,0).getDate();
+  const prevDim=new Date(curY,curM,0).getDate();
+  const tds=todayStr();
+  const cells=[];
+  for(let i=startDow-1;i>=0;i--)cells.push({d:prevDim-i,out:true});
+  for(let d=1;d<=dim;d++)cells.push({d,out:false});
+  while(cells.length%7!==0)cells.push({d:cells.length-startDow-dim+1,out:true});
+  for(const c of cells){
+    const ymd=ds(curY,curM,c.d);
+    const isToday=(!c.out&&ymd===tds);
+    const nodes=c.out?[]:NODES.filter(n=>n.date===ymd);
+    const evs=c.out?[]:EVENTS.filter(e=>e.date===ymd);
+    let inner='<div class="dnum">'+c.d+'</div>';
+    if(nodes.length){
+      const show=nodes.slice(0,3);
+      inner+='<div class="tags">'+show.map(n=>`<span class="tag" style="background:${catColor(n.cat)}">${esc(n.name)}</span>`).join('')+(nodes.length>3?`<span class="more">+${nodes.length-3}节点</span>`:'')+'</div>';
+    }
+    if(evs.length){
+      const show=evs.slice(0,3);
+      inner+='<div class="plans">'+show.map(e=>`<span class="plan"><span class="dot" style="background:${TYPE_COLORS[e.type]||'#374151'}"></span>${esc(e.proj)}·${esc(e.type)}</span>`).join('')+(evs.length>3?`<span class="more">+${evs.length-3}计划</span>`:'')+'</div>';
+    }
+    html+=`<div class="cell${c.out?' out':''}${isToday?' today':''}" ${c.out?'':`onclick="openDay('${ymd}')"`}>${inner}</div>`;
+  }
+  grid.innerHTML=html;
+  renderLegend();
+}
+function renderLegend(){
+  const types=['活动','咨询','正课','高价课','优惠券'];
+  let html=types.map(t=>`<span class="lg"><span class="lgd" style="background:${TYPE_COLORS[t]}"></span>${t}推送</span>`).join('');
+  html+='<span style="color:#d1d5db">|</span>';
+  for(const c of Object.keys(CAT_COLORS))html+=`<span class="lg"><span class="lgd" style="border-radius:2px;background:${CAT_COLORS[c]}"></span>${c}</span>`;
+  document.getElementById('legend').innerHTML=html;
+}
+
+/* ---------- 日详情/计划 ---------- */
+let curDate=null;
+function openDay(ymd){
+  curDate=ymd;
+  const d=new Date(ymd+'T00:00');
+  document.getElementById('dm-title').textContent=(d.getMonth()+1)+'月'+d.getDate()+'日';
+  document.getElementById('dm-date').textContent=ymd+' 周'+'日一二三四五六'[d.getDay()];
+  const nodes=NODES.filter(n=>n.date===ymd);
+  document.getElementById('dm-nodes-sec').style.display=nodes.length?'':'none';
+  document.getElementById('dm-nodes').innerHTML=nodes.map(n=>`<span class="nitem" style="background:${catColor(n.cat)}">${esc(n.name)} · ${esc(n.cat)}</span>`).join('');
+  const evs=EVENTS.filter(e=>e.date===ymd);
+  document.getElementById('dm-plans').innerHTML=evs.length?evs.map(e=>
+    `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${TYPE_COLORS[e.type]||'#374151'};flex-shrink:0"></span><span class="pname">${esc(e.proj)} · ${esc(e.type)}${e.note?' · '+esc(e.note):''}</span><span class="del" onclick="delEvent('${e.id}')">×</span></div>`
+  ).join(''):'<div style="font-size:12px;color:#9ca3af">这天还没有推送计划</div>';
+  const sel=document.getElementById('fm-proj');
+  if(!sel.options.length)sel.innerHTML=PROJS.map(p=>`<option>${p}</option>`).join('');
+  document.getElementById('fm-note').value='';
+  document.getElementById('dayModal').classList.add('show');
+}
+function closeDay(){document.getElementById('dayModal').classList.remove('show');curDate=null;}
+async function addEvent(){
+  if(!curDate)return;
+  const proj=document.getElementById('fm-proj').value;
+  const type=document.getElementById('fm-type').value;
+  const note=document.getElementById('fm-note').value.trim();
+  if(!proj||!type)return;
+  EVENTS.push({id:uid(),date:curDate,proj,type,note});
+  await saveEvents();
+  openDay(curDate);render();
+}
+async function delEvent(id){
+  EVENTS=EVENTS.filter(e=>e.id!==id);
+  await saveEvents();
+  if(curDate)openDay(curDate);
+  render();
+}
+
+/* ---------- 节点库 ---------- */
+function openNodes(){
+  renderNodeList();
+  document.getElementById('nodesModal').classList.add('show');
+}
+function closeNodes(){document.getElementById('nodesModal').classList.remove('show');}
+function renderNodeList(){
+  const sorted=[...NODES].sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('nm-list').innerHTML=sorted.length?sorted.map(n=>
+    `<div class="nrow"><span class="nd">${n.date}</span><span class="tag" style="background:${catColor(n.cat)};font-size:10px;padding:1px 5px;border-radius:3px;color:#fff">${esc(n.cat)}</span><span class="nn">${esc(n.name)}</span><span class="del" onclick="delNode('${n.id}')">×</span></div>`
+  ).join(''):'<div style="font-size:12px;color:#9ca3af">暂无节点</div>';
+}
+async function addNode(){
+  const date=document.getElementById('nm-date').value;
+  const name=document.getElementById('nm-name').value.trim();
+  const cat=document.getElementById('nm-cat').value.trim()||'其他';
+  if(!date||!name){alert('请填日期和名称');return;}
+  NODES.push({id:uid(),date,name,cat});
+  await saveNodes();
+  renderNodeList();render();
+  document.getElementById('nm-name').value='';
+  document.getElementById('nm-cat').value='';
+}
+async function delNode(id){
+  NODES=NODES.filter(n=>n.id!==id);
+  await saveNodes();
+  renderNodeList();render();
+}
+
+/* ---------- 启动：云端拉取 ---------- */
+(async function(){
+  render();
+  try{
+    const ev=await sbGet('calendar_events');
+    if(ev&&Array.isArray(ev)&&ev.length)EVENTS=ev;
+    else if(!ev)EVENTS=JSON.parse(localStorage.getItem('cal_events')||'[]');
+    const nd=await sbGet('calendar_nodes');
+    if(nd&&Array.isArray(nd)&&nd.length)NODES=nd;
+    else if(!nd)NODES=JSON.parse(localStorage.getItem('cal_nodes')||'null')||NODES;
+    CLOUD=true;setCloud('☁ 已连接');
+    render();
+  }catch(e){
+    CLOUD=false;setCloud('⚠ 云端不可用（本地模式）');
+    try{
+      const ev=JSON.parse(localStorage.getItem('cal_events')||'[]');
+      if(Array.isArray(ev))EVENTS=ev;
+      const nd=JSON.parse(localStorage.getItem('cal_nodes')||'null');
+      if(Array.isArray(nd)&&nd.length)NODES=nd;
+    }catch(_){}
+    render();
+  }
+})();
+</script>
+</body>
+</html>
