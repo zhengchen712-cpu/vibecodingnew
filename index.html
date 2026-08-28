@@ -205,8 +205,19 @@ function check(proj,type,t){
 }
 
 /* ---------- 历史 ---------- */
-function snapshot(){return JSON.stringify(DATA);}
-function restore(s){DATA=JSON.parse(s);renderAll();}
+function snapshot(){return JSON.stringify({v:2,data:DATA,order:projOrder.filter(p=>DATA.some(d=>d[0]===p))});}
+function restore(s){
+  const obj=JSON.parse(s);
+  if(obj&&Array.isArray(obj.data)){
+    DATA=obj.data;
+    if(Array.isArray(obj.order)){projOrder=obj.order.concat(DATA.map(d=>d[0]).filter(p=>!obj.order.includes(p)));}
+    else{projOrder=[...new Set(DATA.map(d=>d[0]))];}
+  }else{
+    DATA=obj;
+    projOrder=[...new Set(DATA.map(d=>d[0]))];
+  }
+  renderAll();
+}
 function pushHistory(){undoStack.push(snapshot());if(undoStack.length>50)undoStack.shift();redoStack.length=0;updateHBtns();}
 function undo(){if(!undoStack.length)return;redoStack.push(snapshot());const s=undoStack.pop();restore(s);updateHBtns();}
 function redo(){if(!redoStack.length)return;undoStack.push(snapshot());const s=redoStack.pop();restore(s);updateHBtns();}
@@ -539,7 +550,7 @@ function openVersions(){
     box.innerHTML=warn+importBtn+v.map((item,i)=>{
       const d=new Date(item.ts);
       const ts=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      return `<div class="version-item"><span>${item.name}<br><small style="color:#9ca3af">${ts} · ${JSON.parse(item.data).length}条</small></span>
+      return `<div class="version-item"><span>${item.name}<br><small style="color:#9ca3af">${ts} · ${(JSON.parse(item.data).data||JSON.parse(item.data)).length}条</small></span>
       <span class="vbtns"><button class="btn ghost mini" onclick="loadVersion(${i})">载入</button><button class="btn ghost mini" onclick="delVersion(${i})">删</button></span></div>`;
     }).join('');
   }
@@ -629,8 +640,11 @@ document.addEventListener('keydown',e=>{
   const saved=loadCurrent();
   if(saved){
     try{
-      const d=JSON.parse(saved);
-      if(Array.isArray(d)&&d.length){DATA=d;}
+      const obj=JSON.parse(saved);
+      if(obj&&Array.isArray(obj.data)&&obj.data.length){
+        DATA=obj.data;
+        if(Array.isArray(obj.order)){projOrder=obj.order.concat(DATA.map(d=>d[0]).filter(p=>!obj.order.includes(p)));}
+      }else if(Array.isArray(obj)&&obj.length){DATA=obj;}
     }catch(e){}
   }
 })();
