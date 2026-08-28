@@ -77,10 +77,11 @@ h1{font-size:20px;margin-bottom:2px}
 <div class="bar">
   <button class="btn ghost" onclick="undo()" id="undoBtn" disabled>↩ 回撤</button>
   <button class="btn ghost" onclick="redo()" id="redoBtn" disabled>↪ 重做</button>
-  <button class="btn" onclick="saveVersion()">💾 保存版本</button>
+  <button class="btn" onclick="saveVersion()">💾 保存到云端</button>
   <button class="btn ghost" onclick="openVersions()">📂 版本列表</button>
   <button class="btn ghost" onclick="exportData()">导出数据</button>
   <button class="btn ghost" onclick="exportCSV()">导出CSV</button>
+  <span id="cloudStatus" style="font-size:11px;color:#9ca3af;margin-left:4px">☁…</span>
 </div>
 
 <div class="legend" id="legend"></div>
@@ -101,7 +102,7 @@ h1{font-size:20px;margin-bottom:2px}
 💡 <b>规则</b>：蓝·活动 8:00-21:00 ｜ 橙·咨询 9:00-21:00 ｜ 红·正课 ｜ 紫·高价课 9:00-21:00 ｜ 绿·优惠券<br>
 · 正课/优惠券须落在绿色黄金时段带内（8:00-9:00 / 12:00-13:30 / 17:30-19:00 / 20:30-22:30）<br>
 · 红框=违反规则 ｜ 黄框=同类撞时间 ｜ 每行右侧「+」添加推送点 ｜ 拖动精度 5 分钟<br>
-· 回撤/重做记录最近操作；保存的版本存浏览器本地（localStorage）
+· 回撤/重做记录最近操作；保存到云端后，其他人打开同一链接也能看到最新数据（Supabase 共享）
 </div>
 
 <div class="modal" id="modal">
@@ -550,6 +551,53 @@ function confirmAddDot(){
   closeAddDot();
 }
 
+/* ---------- 云端同步（Supabase） ---------- */
+const SB_URL='https://rupjlztoyrzvvpyvbund.supabase.co';
+const SB_KEY='sb_publishable_jZm-UIiUdAV1QotQmegQ_g_psEwm93S';
+const SB_STATE_KEY='cloud_state';
+const SB_VERSIONS_KEY='cloud_versions';
+const SB_TABLE='push_kv';
+
+let CLOUD_OK=null;
+
+function sbHeaders(){return {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};}
+
+async function sbKvGet(key){
+  const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=eq.'+encodeURIComponent(key)+'&select=value',{headers:sbHeaders()});
+  if(!r.ok)throw new Error('GET '+r.status);
+  const rows=await r.json();
+  return rows.length?rows[0].value:null;
+}
+
+async function sbKvSet(key,value){
+  const body=JSON.stringify({key:key,value:value});
+  const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?on_conflict=key',{method:'POST',headers:{...sbHeaders(),'Prefer':'resolution=merge-duplicates'},body});
+  if(!r.ok && r.status!==201)throw new Error('SET '+r.status);
+  return true;
+}
+
+async function cloudSaveCurrent(){
+  try{await sbKvSet(SB_STATE_KEY,JSON.parse(snapshot()));saveCurrent();CLOUD_OK=true;return true;}
+  catch(e){CLOUD_OK=false;console.warn('云保存失败',e);saveCurrent();return false;}
+}
+
+async function cloudSaveVersions(list){
+  try{await sbKvSet(SB_VERSIONS_KEY,list);localStorage.setItem(VKEY,JSON.stringify(list));return true;}
+  catch(e){console.warn('云版本保存失败',e);localStorage.setItem(VKEY,JSON.stringify(list));return false;}
+}
+
+async function cloudLoad(){
+  try{
+    const state=await sbKvGet(SB_STATE_KEY);
+    const versions=await sbKvGet(SB_VERSIONS_KEY);
+    CLOUD_OK=true;
+    return {state:state?JSON.stringify(state):null,versions:versions||[],ok:true};
+  }catch(e){
+    CLOUD_OK=false;
+    return {state:loadCurrent(),versions:getVersions(),ok:false};
+  }
+}
+
 /* ---------- 版本 ---------- */
 const VKEY='schedule_versions';
 const SKEY='schedule_current';
@@ -557,22 +605,20 @@ function lsOK(){try{const k='__test__'+Date.now();localStorage.setItem(k,'1');lo
 function getVersions(){try{return JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){return[];}}
 function saveCurrent(){try{localStorage.setItem(SKEY,snapshot());}catch(e){}}
 function loadCurrent(){try{return localStorage.getItem(SKEY);}catch(e){return null;}}
-function saveVersion(){
-  if(!lsOK()){
-    if(!confirm('⚠️ 你的浏览器 localStorage 不可用（可能开了隐身模式 / file:// 协议），保存的版本刷新会丢。\n\n继续保存：版本仅存在本会话。\n取消：请换常规浏览器以在本站点以 HTTPS 打开。'))return;
-  }
+async function saveVersion(){
   const name=prompt('给这个版本起个名字：', '版本 '+new Date().toLocaleString('zh-CN'));
   if(name===null)return;
   const v=getVersions();
   v.unshift({name:name||('版本'+new Date().toLocaleString()),ts:Date.now(),data:snapshot()});
-  try{
-    localStorage.setItem(VKEY,JSON.stringify(v));
-    saveCurrent();
-    alert('已保存：'+name+'\n刷新后会自动恢复到这个状态。');
-  }catch(e){
-    alert('localStorage 写入失败：'+e.message+'\n（为你下载 JSON 备份，请保存好）');
-    downloadBackup(v);
-  }
+  saveCurrent();
+  localStorage.setItem(VKEY,JSON.stringify(v));
+  const st=document.getElementById('cloudStatus');
+  if(st)st.textContent='☁ 保存中…';
+  const okV=await cloudSaveVersions(v);
+  const okS=await cloudSaveCurrent();
+  const st2=document.getElementById('cloudStatus');
+  if(st2)st2.textContent=(okS&&okV)?'☁ 已同步':'⚠ 仅本地';
+  alert('已保存：'+name+((okS&&okV)?'\n✅ 已同步到云端，其他人刷新可见':'\n⚠ 云端不可用，仅存本浏览器')); 
 }
 function downloadBackup(versions){
   try{
@@ -636,6 +682,7 @@ function loadVersion(i){
   pushHistory();
   restore(v[i].data);
   saveCurrent();
+  cloudSaveCurrent();
   closeVersions();
 }
 function delVersion(i){
@@ -683,20 +730,34 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();redo();}
 });
 
-/* 启动时自动恢复最近保存的当前状态 */
-(function(){
-  const saved=loadCurrent();
-  if(saved){
-    try{
-      const obj=JSON.parse(saved);
-      if(obj&&Array.isArray(obj.data)&&obj.data.length){
-        DATA=obj.data;
-        if(Array.isArray(obj.order)){projOrder=obj.order.concat(DATA.map(d=>d[0]).filter(p=>!obj.order.includes(p)));}
-      }else if(Array.isArray(obj)&&obj.length){DATA=obj;}
-    }catch(e){}
+/* 启动：云端拉取最新共享状态，失败降级本地 */
+(async function(){
+  renderAll();
+  const st=document.getElementById('cloudStatus');
+  try{
+    const {state,versions,ok}=await cloudLoad();
+    if(ok){
+      if(st)st.textContent='☁ 已连接';
+      if(versions&&versions.length){localStorage.setItem(VKEY,JSON.stringify(versions));}
+      if(state){restore(state);}
+    }else{
+      if(st)st.textContent='⚠ 云端不可用（本地模式）';
+      const saved=loadCurrent();
+      if(saved){
+        try{
+          const obj=JSON.parse(saved);
+          if(obj&&Array.isArray(obj.data)&&obj.data.length){
+            DATA=obj.data;
+            if(Array.isArray(obj.order)){projOrder=obj.order.concat(DATA.map(d=>d[0]).filter(p=>!obj.order.includes(p)));}
+            renderAll();
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){
+    if(st)st.textContent='⚠ 云端不可用（本地模式）';
   }
 })();
-renderAll();
 </script>
 </body>
 </html>
