@@ -213,8 +213,21 @@ async function sbSet(key,val){
 }
 function setCloud(txt){const s=document.getElementById('cloudStatus');if(s)s.textContent=txt;}
 async function saveEvents(){
-  try{await sbSet('calendar_events',EVENTS);localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=true;setCloud('☁ 已连接');}
-  catch(e){localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=false;setCloud('⚠ 仅本地');}
+  // 防多端覆盖：先拉云端最新，按 id 合并（本地新增优先，云端他人新增保留），再存
+  try{
+    let merged=EVENTS;
+    try{
+      const remote=await sbGet('calendar_events');
+      if(Array.isArray(remote)&&remote.length){
+        const localIds=new Set(EVENTS.map(e=>e.id));
+        const remoteOnly=remote.filter(e=>!localIds.has(e.id));
+        merged=[...EVENTS,...remoteOnly];
+      }
+    }catch(_){}
+    EVENTS=merged;
+    await sbSet('calendar_events',EVENTS);
+    localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=true;setCloud('☁ 已连接');
+  }catch(e){localStorage.setItem('cal_events',JSON.stringify(EVENTS));CLOUD=false;setCloud('⚠ 仅本地');}
 }
 async function saveNodes(){
   try{await sbSet('calendar_nodes',NODES);localStorage.setItem('cal_nodes',JSON.stringify(NODES));CLOUD=true;setCloud('☁ 已连接');}
