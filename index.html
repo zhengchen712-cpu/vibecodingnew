@@ -45,6 +45,10 @@ h1{font-size:20px;margin-bottom:2px}
 .dot.star{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
 .dot.bad{outline:2px solid #ef4444;outline-offset:1px}
 .dot.overlap{outline:2px solid #f59e0b;outline-offset:1px}
+.label{position:relative;}
+.proj-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);color:#b91c1c;cursor:pointer;font-size:14px;font-weight:700;padding:2px 4px;line-height:1;opacity:.65;}
+.proj-del:hover{opacity:1;}
+.label{padding-right:18px;}
 .add-proj{width:132px;margin-left:-132px;padding:4px 8px;font-size:11px;color:#6b7280;background:#f3f4f6;border:1px dashed #d1d5db;border-radius:4px;cursor:pointer;text-align:center}
 .add-dot{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:#f3f4f6;border:1px dashed #cbd5e1;color:#6b7280;font-size:14px;line-height:18px;text-align:center;cursor:pointer;z-index:3}
 .add-dot:hover{background:#e5e7eb}
@@ -263,7 +267,7 @@ function check(proj,type,t){
 }
 
 /* ---------- 历史 ---------- */
-function snapshot(){return JSON.stringify({v:2,data:DATA,order:projOrder.filter(p=>DATA.some(d=>d[0]===p))});}
+function snapshot(){return JSON.stringify({v:2,data:DATA,order:projOrder});}
 function restore(s){
   const obj=JSON.parse(s);
   if(obj&&Array.isArray(obj.data)){
@@ -346,7 +350,7 @@ function renderGoldens(){
 }
 function renderRows(){
   DATA.forEach(d=>{if(!projOrder.includes(d[0]))projOrder.push(d[0]);});
-  const projs=projOrder.filter(p=>DATA.some(d=>d[0]===p));
+  const projs=projOrder;
   const wrap=document.getElementById('rows');
   wrap.innerHTML=projs.map(p=>{
     const items=DATA.filter(d=>d[0]===p).sort((a,b)=>toMin(a[2])-toMin(b[2]));
@@ -355,7 +359,7 @@ function renderRows(){
       return `<div class="dot ${SHAPES[d[1]]}" data-idx="${idx}" style="left:${xOf(toMin(d[2])).toFixed(2)}%;background:${COLORS[d[1]]}" title="${d[0]} ${d[1]} ${d[2]}"></div>`;
     }).join('');
     const add=`<div class="add-dot" data-proj="${p}" title="添加推送点">+</div>`;
-    return `<div class="row"><div class="label" data-proj="${p}" title="拖动整行整体平移">${p}</div><div class="track" data-proj="${p}">${dots}${add}</div></div>`;
+    return `<div class="row"><div class="label" data-proj="${p}" title="拖动整行整体平移">${p}<span class="proj-del" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();openDelProj('${p}')" title="删除此考试类型">×</span></div><div class="track" data-proj="${p}">${dots}${add}</div></div>`;
   }).join('');
   // 底部添加考试
   wrap.innerHTML+=`<div class="row" style="height:38px"><div class="add-proj" onclick="openAddProj()">＋ 添加考试类型</div><div class="track"></div></div>`;
@@ -537,10 +541,16 @@ function confirmAddProj(){
   if(!name){alert('请输入考试名称');return;}
   if(DATA.some(d=>d[0]===name)){alert('该考试已存在');return;}
   pushHistory();
-  DATA.push([name,'咨询','09:00']);
   projOrder.push(name);
   renderRows();renderLegend();
   closeAddProj();
+}
+function openDelProj(proj){
+  if(!confirm('删除考试类型「'+proj+'」？该行所有推送点一并删除。'))return;
+  pushHistory();
+  DATA=DATA.filter(d=>d[0]!==proj);
+  projOrder=projOrder.filter(p=>p!==proj);
+  renderRows();renderLegend();
 }
 
 /* 添加推送点 */
