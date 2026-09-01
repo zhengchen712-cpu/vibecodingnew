@@ -105,7 +105,14 @@ h1{font-size:20px;margin-bottom:2px}
     <div class="sec"><h4>📋 推送计划</h4><div id="dm-plans"></div></div>
     <div class="sec"><h4>➕ 添加推送计划</h4>
       <div class="form">
-        <select id="fm-proj"></select>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="fm-proj" style="flex:1"></select>
+          <button class="btn ghost" style="padding:6px 10px;white-space:nowrap" onclick="document.getElementById('fm-proj-new-row').style.display='flex';this.style.display='none'" title="添加自定义考试类型">＋</button>
+        </div>
+        <div id="fm-proj-new-row" style="display:none;flex-direction:row;gap:6px">
+          <input type="text" id="fm-proj-new" placeholder="新考试类型名称，如：山东事业单位" style="flex:1">
+          <button class="btn ghost" style="padding:6px 10px;white-space:nowrap" onclick="addProjCustom()">添加</button>
+        </div>
         <select id="fm-type">
           <option>活动</option><option>咨询</option><option>正课</option><option>高价课</option><option>优惠券</option>
         </select>
@@ -182,6 +189,7 @@ function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&
 
 /* ---------- 云端 ---------- */
 let CLOUD=null;
+let PROJ_CUSTOM=[]; // 用户自定义考试类型
 function sbH(){return {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};}
 async function sbGet(key){
   const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=eq.'+encodeURIComponent(key)+'&select=value',{headers:sbH()});
@@ -201,6 +209,34 @@ async function saveEvents(){
 async function saveNodes(){
   try{await sbSet('calendar_nodes',NODES);localStorage.setItem('cal_nodes',JSON.stringify(NODES));CLOUD=true;setCloud('☁ 已连接');}
   catch(e){localStorage.setItem('cal_nodes',JSON.stringify(NODES));CLOUD=false;setCloud('⚠ 仅本地');}
+}
+async function saveProjCustom(){
+  try{await sbSet('calendar_proj_custom',PROJ_CUSTOM);localStorage.setItem('cal_proj_custom',JSON.stringify(PROJ_CUSTOM));CLOUD=true;setCloud('☁ 已连接');}
+  catch(e){localStorage.setItem('cal_proj_custom',JSON.stringify(PROJ_CUSTOM));CLOUD=false;setCloud('⚠ 仅本地');}
+}
+function allProjs(){return [...PROJS,...PROJ_CUSTOM.filter(p=>!PROJS.includes(p))];}
+function refreshProjSel(){
+  const sel=document.getElementById('fm-proj');
+  const cur=sel.value;
+  sel.innerHTML=allProjs().map(p=>`<option>${esc(p)}</option>`).join('');
+  if(cur&&allProjs().includes(cur))sel.value=cur;
+}
+async function addProjCustom(){
+  const inp=document.getElementById('fm-proj-new');
+  const name=inp.value.trim();
+  if(!name)return;
+  if(allProjs().includes(name)){inp.value='';return;}
+  PROJ_CUSTOM.push(name);
+  await saveProjCustom();
+  refreshProjSel();
+  document.getElementById('fm-proj').value=name;
+  inp.value='';
+}
+async function delProjCustom(name){
+  if(!confirm('删除自定义考试类型「'+name+'」？已有推送计划不受影响。'))return;
+  PROJ_CUSTOM=PROJ_CUSTOM.filter(p=>p!==name);
+  await saveProjCustom();
+  refreshProjSel();
 }
 
 /* ---------- 渲染 ---------- */
@@ -264,7 +300,7 @@ function openDay(ymd){
     `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${TYPE_COLORS[e.type]||'#374151'};flex-shrink:0"></span><span class="pname">${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span><span class="del" onclick="delEvent('${e.id}')">×</span></div>`
   ).join(''):'<div style="font-size:12px;color:#9ca3af">这天还没有推送计划</div>';
   const sel=document.getElementById('fm-proj');
-  if(!sel.options.length)sel.innerHTML=PROJS.map(p=>`<option>${p}</option>`).join('');
+  if(!sel.options.length)refreshProjSel();
   document.getElementById('fm-note').value='';
   document.getElementById('dayModal').classList.add('show');
 }
@@ -325,6 +361,9 @@ async function delNode(id){
     const nd=await sbGet('calendar_nodes');
     if(nd&&Array.isArray(nd)&&nd.length)NODES=nd;
     else if(!nd)NODES=JSON.parse(localStorage.getItem('cal_nodes')||'null')||NODES;
+    const pc=await sbGet('calendar_proj_custom');
+    if(pc&&Array.isArray(pc))PROJ_CUSTOM=pc;
+    else{const l=JSON.parse(localStorage.getItem('cal_proj_custom')||'[]');if(Array.isArray(l))PROJ_CUSTOM=l;}
     CLOUD=true;setCloud('☁ 已连接');
     render();
   }catch(e){
@@ -334,6 +373,8 @@ async function delNode(id){
       if(Array.isArray(ev))EVENTS=ev;
       const nd=JSON.parse(localStorage.getItem('cal_nodes')||'null');
       if(Array.isArray(nd)&&nd.length)NODES=nd;
+      const l=JSON.parse(localStorage.getItem('cal_proj_custom')||'[]');
+      if(Array.isArray(l))PROJ_CUSTOM=l;
     }catch(_){}
     render();
   }
