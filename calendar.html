@@ -218,15 +218,17 @@ async function sbSet(key,val){
   if(!r.ok&&r.status!==201)throw new Error('SET '+r.status);
 }
 function setCloud(txt){const s=document.getElementById('cloudStatus');if(s)s.textContent=txt;}
+let DELETED_EVENT_IDS=[]; // 本会话已删除的计划 id，防止合并逻辑拉回
 async function saveEvents(){
-  // 防多端覆盖：先拉云端最新，按 id 合并（本地新增优先，云端他人新增保留），再存
+  // 防多端覆盖：先拉云端最新，按 id 合并（本地新增优先，云端他人新增保留；已删除的不拉回），再存
   try{
     let merged=EVENTS;
     try{
       const remote=await sbGet('calendar_events');
       if(Array.isArray(remote)&&remote.length){
         const localIds=new Set(EVENTS.map(e=>e.id));
-        const remoteOnly=remote.filter(e=>!localIds.has(e.id));
+        const deletedIds=new Set(DELETED_EVENT_IDS);
+        const remoteOnly=remote.filter(e=>!localIds.has(e.id)&&!deletedIds.has(e.id));
         merged=[...EVENTS,...remoteOnly];
       }
     }catch(_){}
@@ -424,6 +426,7 @@ async function delTpl(i){
   renderTplList();
 }
 async function delEvent(id){
+  DELETED_EVENT_IDS.push(id);
   EVENTS=EVENTS.filter(e=>e.id!==id);
   await saveEvents();
   if(curDate)openDay(curDate);
