@@ -113,9 +113,14 @@ h1{font-size:20px;margin-bottom:2px}
           <input type="text" id="fm-proj-new" placeholder="新考试类型名称，如：山东事业单位" style="flex:1">
           <button class="btn ghost" style="padding:6px 10px;white-space:nowrap" onclick="addProjCustom()">添加</button>
         </div>
-        <select id="fm-type">
-          <option>活动</option><option>咨询</option><option>正课</option><option>高价课</option><option>优惠券</option>
-        </select>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="fm-type" style="flex:1"></select>
+          <button class="btn ghost" style="padding:6px 10px;white-space:nowrap" onclick="document.getElementById('fm-type-new-row').style.display='flex';this.style.display='none'" title="添加自定义活动类型">＋</button>
+        </div>
+        <div id="fm-type-new-row" style="display:none;flex-direction:row;gap:6px">
+          <input type="text" id="fm-type-new" placeholder="新活动类型名称，如：直播课" style="flex:1">
+          <button class="btn ghost" style="padding:6px 10px;white-space:nowrap" onclick="addTypeCustom()">添加</button>
+        </div>
         <input type="text" id="fm-note" placeholder="备注（可选），如：国考冲刺预热">
         <div class="rowbtn">
           <button class="btn ghost" onclick="closeDay()">取消</button>
@@ -190,6 +195,11 @@ function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&
 /* ---------- 云端 ---------- */
 let CLOUD=null;
 let PROJ_CUSTOM=[]; // 用户自定义考试类型
+let TYPE_CUSTOM=[]; // 用户自定义活动类型
+const TYPES_BASE=['活动','咨询','正课','高价课','优惠券'];
+const TYPE_CUSTOM_POOL=['#c026d3','#0891b2','#ca8a04','#0d9488','#7c2d12','#4338ca','#be123c','#155e75'];
+let TYPE_CUSTOM_COLORS={};
+function typeColor(t){return TYPE_COLORS[t]||TYPE_CUSTOM_COLORS[t]||'#374151';}
 function sbH(){return {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};}
 async function sbGet(key){
   const r=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?key=eq.'+encodeURIComponent(key)+'&select=value',{headers:sbH()});
@@ -238,6 +248,30 @@ async function delProjCustom(name){
   await saveProjCustom();
   refreshProjSel();
 }
+function allTypes(){return [...TYPES_BASE,...TYPE_CUSTOM.filter(t=>!TYPES_BASE.includes(t))];}
+async function saveTypeCustom(){
+  try{await sbSet('calendar_type_custom',TYPE_CUSTOM);localStorage.setItem('cal_type_custom',JSON.stringify(TYPE_CUSTOM));CLOUD=true;setCloud('☁ 已连接');}
+  catch(e){localStorage.setItem('cal_type_custom',JSON.stringify(TYPE_CUSTOM));CLOUD=false;setCloud('⚠ 仅本地');}
+}
+function refreshTypeSel(){
+  const sel=document.getElementById('fm-type');
+  const cur=sel.value;
+  sel.innerHTML=allTypes().map(t=>`<option>${esc(t)}</option>`).join('');
+  if(cur&&allTypes().includes(cur))sel.value=cur;
+}
+async function addTypeCustom(){
+  const inp=document.getElementById('fm-type-new');
+  const name=inp.value.trim();
+  if(!name)return;
+  if(allTypes().includes(name)){inp.value='';return;}
+  TYPE_CUSTOM.push(name);
+  TYPE_CUSTOM_COLORS[name]=TYPE_CUSTOM_POOL[TYPE_CUSTOM.length%TYPE_CUSTOM_POOL.length];
+  await saveTypeCustom();
+  refreshTypeSel();
+  document.getElementById('fm-type').value=name;
+  inp.value='';
+  renderLegend();
+}
 
 /* ---------- 渲染 ---------- */
 let curY,curM;
@@ -270,7 +304,7 @@ function render(){
     }
     if(evs.length){
       const show=evs.slice(0,3);
-      inner+='<div class="plans">'+show.map(e=>`<span class="plan"><span class="dot" style="background:${TYPE_COLORS[e.type]||'#374151'}"></span>${esc(e.proj)}-${esc(e.type)}</span>`).join('')+(evs.length>3?`<span class="more">+${evs.length-3}计划</span>`:'')+'</div>';
+      inner+='<div class="plans">'+show.map(e=>`<span class="plan"><span class="dot" style="background:${typeColor(e.type)}"></span>${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span>`).join('')+(evs.length>3?`<span class="more">+${evs.length-3}计划</span>`:'')+'</div>';
     }
     html+=`<div class="cell${c.out?' out':''}${isToday?' today':''}" ${c.out?'':`onclick="openDay('${ymd}')"`}>${inner}</div>`;
   }
@@ -278,8 +312,7 @@ function render(){
   renderLegend();
 }
 function renderLegend(){
-  const types=['活动','咨询','正课','高价课','优惠券','公告解读','备考攻略','课程活动','节点倒计时','报名提醒','资料福利','社群活动','节点借势'];
-  let html=types.map(t=>`<span class="lg"><span class="lgd" style="background:${TYPE_COLORS[t]}"></span>${t}推送</span>`).join('');
+  let html=allTypes().map(t=>`<span class="lg"><span class="lgd" style="background:${typeColor(t)}"></span>${t}推送</span>`).join('');
   html+='<span style="color:#d1d5db">|</span>';
   for(const c of Object.keys(CAT_COLORS))html+=`<span class="lg"><span class="lgd" style="border-radius:2px;background:${CAT_COLORS[c]}"></span>${c}</span>`;
   document.getElementById('legend').innerHTML=html;
@@ -297,10 +330,12 @@ function openDay(ymd){
   document.getElementById('dm-nodes').innerHTML=nodes.map(n=>`<span class="nitem" style="background:${catColor(n.cat)}">${esc(n.name)} · ${esc(n.cat)}</span>`).join('');
   const evs=EVENTS.filter(e=>e.date===ymd);
   document.getElementById('dm-plans').innerHTML=evs.length?evs.map(e=>
-    `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${TYPE_COLORS[e.type]||'#374151'};flex-shrink:0"></span><span class="pname">${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span><span class="del" onclick="delEvent('${e.id}')">×</span></div>`
+    `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${typeColor(e.type)};flex-shrink:0"></span><span class="pname">${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span><span class="del" onclick="delEvent('${e.id}')">×</span></div>`
   ).join(''):'<div style="font-size:12px;color:#9ca3af">这天还没有推送计划</div>';
   const sel=document.getElementById('fm-proj');
   if(!sel.options.length)refreshProjSel();
+  const tsel=document.getElementById('fm-type');
+  if(!tsel.options.length)refreshTypeSel();
   document.getElementById('fm-note').value='';
   document.getElementById('dayModal').classList.add('show');
 }
@@ -364,6 +399,10 @@ async function delNode(id){
     const pc=await sbGet('calendar_proj_custom');
     if(pc&&Array.isArray(pc))PROJ_CUSTOM=pc;
     else{const l=JSON.parse(localStorage.getItem('cal_proj_custom')||'[]');if(Array.isArray(l))PROJ_CUSTOM=l;}
+    const tc=await sbGet('calendar_type_custom');
+    if(tc&&Array.isArray(tc))TYPE_CUSTOM=tc;
+    else{const l2=JSON.parse(localStorage.getItem('cal_type_custom')||'[]');if(Array.isArray(l2))TYPE_CUSTOM=l2;}
+    TYPE_CUSTOM.forEach((t,i)=>TYPE_CUSTOM_COLORS[t]=TYPE_CUSTOM_POOL[i%TYPE_CUSTOM_POOL.length]);
     CLOUD=true;setCloud('☁ 已连接');
     render();
   }catch(e){
@@ -375,6 +414,9 @@ async function delNode(id){
       if(Array.isArray(nd)&&nd.length)NODES=nd;
       const l=JSON.parse(localStorage.getItem('cal_proj_custom')||'[]');
       if(Array.isArray(l))PROJ_CUSTOM=l;
+      const l2=JSON.parse(localStorage.getItem('cal_type_custom')||'[]');
+      if(Array.isArray(l2))TYPE_CUSTOM=l2;
+      TYPE_CUSTOM.forEach((t,i)=>TYPE_CUSTOM_COLORS[t]=TYPE_CUSTOM_POOL[i%TYPE_CUSTOM_POOL.length]);
     }catch(_){}
     render();
   }
