@@ -128,8 +128,9 @@ h1{font-size:20px;margin-bottom:2px}
         </div>
         <div id="fm-tpl-list" style="display:none;max-height:180px;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;padding:6px"></div>
         <div class="rowbtn">
+          <button class="btn ghost" id="fm-cancel-edit" style="display:none" onclick="resetEventForm()">取消编辑</button>
           <button class="btn ghost" onclick="closeDay()">取消</button>
-          <button class="btn" onclick="addEvent()">添加</button>
+          <button class="btn" id="fm-submit-btn" onclick="submitEventForm()">添加</button>
         </div>
       </div>
     </div>
@@ -348,17 +349,19 @@ function openDay(ymd){
   document.getElementById('dm-nodes').innerHTML=nodes.map(n=>`<span class="nitem" style="background:${catColor(n.cat)}">${esc(n.name)} · ${esc(n.cat)}</span>`).join('');
   const evs=EVENTS.filter(e=>e.date===ymd);
   document.getElementById('dm-plans').innerHTML=evs.length?evs.map(e=>
-    `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${typeColor(e.type)};flex-shrink:0"></span><span class="pname">${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span><span class="del" onclick="delEvent('${e.id}')">×</span></div>`
+    `<div class="pitem"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${typeColor(e.type)};flex-shrink:0"></span><span class="pname">${esc(e.proj)}-${esc(e.type)}${e.note?'-'+esc(e.note):''}</span><span class="del" style="color:#2563eb" onclick="editEvent('${e.id}')" title="编辑">✎</span><span class="del" onclick="delEvent('${e.id}')" title="删除">×</span></div>`
   ).join(''):'<div style="font-size:12px;color:#9ca3af">这天还没有推送计划</div>';
   const sel=document.getElementById('fm-proj');
   if(!sel.options.length)refreshProjSel();
   const tsel=document.getElementById('fm-type');
   if(!tsel.options.length)refreshTypeSel();
   document.getElementById('fm-note').value='';
+  if(typeof resetEventForm==='function')resetEventForm();
   document.getElementById('dayModal').classList.add('show');
 }
 function closeDay(){document.getElementById('dayModal').classList.remove('show');curDate=null;}
 async function addEvent(){
+  if(editingEventId){await saveEventEdit();return;}
   if(!curDate)return;
   const proj=document.getElementById('fm-proj').value;
   const type=document.getElementById('fm-type').value;
@@ -368,6 +371,7 @@ async function addEvent(){
   await saveEvents();
   openDay(curDate);render();
 }
+function submitEventForm(){addEvent();}
 /* ---------- 计划模版 ---------- */
 let TPLS=[];
 async function saveTpls(){
@@ -424,6 +428,49 @@ async function delEvent(id){
   await saveEvents();
   if(curDate)openDay(curDate);
   render();
+}
+let editingEventId=null;
+function editEvent(id){
+  const ev=EVENTS.find(e=>e.id===id);
+  if(!ev)return;
+  editingEventId=id;
+  // 填充到表单
+  const psel=document.getElementById('fm-proj');
+  if(!allProjs().includes(ev.proj)){PROJ_CUSTOM.push(ev.proj);refreshProjSel();saveProjCustom();}
+  psel.value=ev.proj;
+  const tsel=document.getElementById('fm-type');
+  if(!allTypes().includes(ev.type)){TYPE_CUSTOM.push(ev.type);TYPE_CUSTOM_COLORS[ev.type]=TYPE_CUSTOM_POOL[TYPE_CUSTOM.length%TYPE_CUSTOM_POOL.length];refreshTypeSel();saveTypeCustom();renderLegend();}
+  tsel.value=ev.type;
+  document.getElementById('fm-note').value=ev.note||'';
+  // 按钮变保存模式
+  const btn=document.getElementById('fm-submit-btn');
+  btn.textContent='保存修改';
+  btn.style.background='#2563eb';
+  document.getElementById('fm-cancel-edit').style.display='';
+  document.querySelector('#dayModal .form').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function saveEventEdit(){
+  if(!editingEventId||!curDate)return;
+  const ev=EVENTS.find(e=>e.id===editingEventId);
+  if(!ev){resetEventForm();return;}
+  const proj=document.getElementById('fm-proj').value;
+  const type=document.getElementById('fm-type').value;
+  const note=document.getElementById('fm-note').value.trim();
+  if(!proj||!type)return;
+  ev.proj=proj;ev.type=type;ev.note=note;
+  // 日期改了就移过去
+  if(ev.date!==curDate)ev.date=curDate;
+  await saveEvents();
+  resetEventForm();
+  openDay(curDate);render();
+}
+function resetEventForm(){
+  editingEventId=null;
+  const btn=document.getElementById('fm-submit-btn');
+  btn.textContent='添加';
+  btn.style.background='';
+  document.getElementById('fm-cancel-edit').style.display='none';
+  document.getElementById('fm-note').value='';
 }
 
 /* ---------- 节点库 ---------- */
